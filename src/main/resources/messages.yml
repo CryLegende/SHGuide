@@ -1,0 +1,98 @@
+# ============================================================================
+#  SHGuide : messages du chat, menu de Jake, objectif du moment et retour
+# ============================================================================
+#  Codes couleur & et &#RRGGBB acceptés. Format SkyHand pour le chat : préfixe
+#  de la couleur du type, texte en &7, mots importants dans la couleur du type.
+#    &a succès · &e information · &6 avertissement · &c erreur
+#  Un message vide n'est pas envoyé.
+# ============================================================================
+
+chat:
+  tache-faite: "&7&l« &a&lJake &8&l» &7Tâche du jour faite, &a{reste}&7."
+  reste-plusieurs: "plus que {n}"
+  reste-une: "plus qu'une"
+  programme-complet: "&7&l« &a&lJake &8&l» &7Programme du jour &acomplet &7! Ta récompense t'attend dans &a/jake&7."
+  recompense: "&7&l« &a&lJake &8&l» &7Récompense récupérée. Série de &a{serie} jour(s)&7."
+  recompense-palier: "&7&l« &a&lJake &8&l» &7Palier de série atteint, &a{jour} jours &7!"
+  rien-a-prendre: "&7&l« &e&lJake &8&l» &7Rien à récupérer pour l'instant."
+  chargement: "&7&l« &e&lJake &8&l» &7Ton guide se charge, réessaie dans une seconde."
+  joueurs-seulement: "&7&l« &c&lJake &8&l» &7Commande réservée aux joueurs."
+  permission: "&7&l« &c&lJake &8&l» &7Tu n'as pas la permission."
+  utilisation: "&7&l« &e&lJake &8&l» &7Tape &e{commandes}&7."
+  joueur-inconnu: "&7&l« &c&lJake &8&l» &7Joueur &c{joueur} &7introuvable ou pas connecté."
+  reload-ok: "&7&l« &a&lSHGuide &8&l» &7Configuration rechargée."
+  reload-erreur: "&7&l« &c&lSHGuide &8&l» &7{fichier} invalide, rien n'a changé. &c{erreur}"
+  annonce-ok: "&7&l« &a&lSHGuide &8&l» &7Annonce posée pour &a{minutes} min&7."
+  set-ok: "&7&l« &a&lSHGuide &8&l» &7{champ} de &a{joueur} &7mis à &a{valeur}&7."
+  set-erreur: "&7&l« &c&lSHGuide &8&l» &7Valeur refusée pour {champ}, &c{valeur}&7."
+  reset-ok: "&7&l« &a&lSHGuide &8&l» &7Guide de &a{joueur} &7remis à zéro."
+  info:
+    - "&7&l« &e&lSHGuide &8&l» &e{joueur} &7jour {jour}, palier {palier}, tâches {faites}/{total}"
+    - "&7Série {serie} (record {record}), joker {joker}, dernière venue {venue}, à prendre {attente}"
+
+# Objectif du moment
+objectif:
+  aucun: "Explore ton île"
+  presque: "Plus que {reste} · {tache}"
+  annonce-bientot: "{texte} dans {minutes} min"
+  annonce-commence: "{texte} commence"
+
+menu:
+  titre: "Jake"
+  titre-aide: "Comment faire…"
+  jake:
+    nom: "&b&lJake"
+    phrase-debut: "&fSalut {joueur} ! Voici ton programme du jour."
+    phrase-encours: "&fSalut {joueur} ! Plus que {reste} tâche(s) pour ta récompense."
+    phrase-prete: "&fBravo {joueur} ! Ta récompense t'attend."
+    phrase-fini: "&fÀ demain {joueur}, ta série continue."
+    serie: "&7Série de &6{serie} jour(s)"
+  objectif:
+    nom: "&b&lObjectif du moment"
+    ligne: "&f{texte}"
+    clic: "&8(( Clique pour y aller ))"
+  tache:
+    nom: "&f{texte}"
+    progression: "&7{actuel} sur {objectif}"
+    fait: "&a✔ Fait"
+    clic: "&8(( Clique pour y aller ))"
+  recompense:
+    nom-fermee: "&7Récompense du jour"
+    lore-fermee:
+      - "&7Termine les tâches du jour."
+    nom-prete: "&a&lRécompense du jour"
+    lore-prete:
+      - "&a(( Clique pour la récupérer ))"
+    nom-prise: "&7Récompense prise"
+    lore-prise:
+      - "&7Reviens demain."
+  serie:
+    nom: "&6&lSérie de {serie} jour(s)"
+    prochain: "&7Plus que {reste} jour(s) pour le prochain palier."
+    record: "&7Record {record} jour(s)"
+    joker-oui: "&7Joker de la semaine disponible"
+    joker-non: "&8Joker de la semaine utilisé"
+  aide:
+    nom: "&e&lComment faire…"
+    lore:
+      - "&7Les réponses aux questions"
+      - "&7les plus posées."
+  ile:
+    nom: "&a&lMon île"
+    lore:
+      - "&7Le menu de ton île."
+  reglages:
+    nom: "&7&lRéglages de Jake"
+    lore:
+      - "&7Déplacer, cacher,"
+      - "&7changer son apparence."
+  retour:
+    nom: "&7Retour"
+
+# Retour après une absence, pour les versions sans dialogues (le dialogue vient de SHDialogs)
+retour:
+  chat:
+    - "&7&l« &e&lJake &8&l» &7Content de te revoir, &e{joueur} &7!"
+    - "&7Ton objectif du moment, &e{objectif}&7."
+  nouveaute: "&8• &7{texte}"
+  bouton: "&e&l[Voir Jake]"
