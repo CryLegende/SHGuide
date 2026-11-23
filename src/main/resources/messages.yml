@@ -5,20 +5,24 @@
 #  de la couleur du type, texte en &7, mots importants dans la couleur du type.
 #    &a succès · &e information · &6 avertissement · &c erreur
 #  Un message vide n'est pas envoyé.
+#
+#  Menus : chaque bouton a un « nom » et un « lore » (liste de lignes). Une ligne
+#  faite seulement d'un {bloc} est remplacée par les lignes de ce bloc, ou par
+#  rien s'il est vide ; les lignes vides en double disparaissent.
 # ============================================================================
 
 chat:
   tache-faite: "&7&l« &a&lJake &8&l» &7Tâche du jour faite, &a{reste}&7."
   reste-plusieurs: "plus que {n}"
   reste-une: "plus qu'une"
-  programme-complet: "&7&l« &a&lJake &8&l» &7Programme du jour &acomplet &7! Ta récompense t'attend dans &a/jake&7."
+  programme-complet: "&7&l« &a&lJake &8&l» &7Programme du jour &acomplet &7! Votre récompense vous attend dans &a/jake&7."
   recompense: "&7&l« &a&lJake &8&l» &7Récompense récupérée. Série de &a{serie} jour(s)&7."
   recompense-palier: "&7&l« &a&lJake &8&l» &7Palier de série atteint, &a{jour} jours &7!"
   rien-a-prendre: "&7&l« &e&lJake &8&l» &7Rien à récupérer pour l'instant."
-  chargement: "&7&l« &e&lJake &8&l» &7Ton guide se charge, réessaie dans une seconde."
+  chargement: "&7&l« &e&lJake &8&l» &7Votre guide se charge, réessayez dans une seconde."
   joueurs-seulement: "&7&l« &c&lJake &8&l» &7Commande réservée aux joueurs."
-  permission: "&7&l« &c&lJake &8&l» &7Tu n'as pas la permission."
-  utilisation: "&7&l« &e&lJake &8&l» &7Tape &e{commandes}&7."
+  permission: "&7&l« &c&lJake &8&l» &7Vous n'avez pas la permission."
+  utilisation: "&7&l« &e&lJake &8&l» &7Tapez &e{commandes}&7."
   joueur-inconnu: "&7&l« &c&lJake &8&l» &7Joueur &c{joueur} &7introuvable ou pas connecté."
   reload-ok: "&7&l« &a&lSHGuide &8&l» &7Configuration rechargée."
   reload-erreur: "&7&l« &c&lSHGuide &8&l» &7{fichier} invalide, rien n'a changé. &c{erreur}"
@@ -30,69 +34,147 @@ chat:
     - "&7&l« &e&lSHGuide &8&l» &e{joueur} &7jour {jour}, palier {palier}, tâches {faites}/{total}"
     - "&7Série {serie} (record {record}), joker {joker}, dernière venue {venue}, à prendre {attente}"
 
-# Objectif du moment
+# Objectif du moment (aussi affiché dans le scoreboard)
 objectif:
-  aucun: "Explore ton île"
+  aucun: "Explorer votre île"
   presque: "Plus que {reste} · {tache}"
   annonce-bientot: "{texte} dans {minutes} min"
   annonce-commence: "{texte} commence"
 
 menu:
-  titre: "Jake"
-  titre-aide: "Comment faire…"
+  titre: "&8&lJake &8| Votre guide"
+  titre-aide: "&8&lJake &8| Comment faire ?"
+
   jake:
-    nom: "&b&lJake"
-    phrase-debut: "&fSalut {joueur} ! Voici ton programme du jour."
-    phrase-encours: "&fSalut {joueur} ! Plus que {reste} tâche(s) pour ta récompense."
-    phrase-prete: "&fBravo {joueur} ! Ta récompense t'attend."
-    phrase-fini: "&fÀ demain {joueur}, ta série continue."
-    serie: "&7Série de &6{serie} jour(s)"
+    nom: "&eJake, votre guide"
+    lore:
+      - ""
+      - "&8&l« &f{phrase} &8&l»"
+      - ""
+      - "&7Chaque jour, Jake vous donne &e{total} tâches"
+      - "&7simples. Finissez-les pour gagner une"
+      - "&erécompense &7et faire grimper votre &6série&7."
+    phrase-debut: "Salut {joueur}, voici vos tâches du jour !"
+    phrase-encours: "Courage {joueur}, plus que {reste} tâche(s) !"
+    phrase-prete: "Bravo {joueur}, votre récompense est prête !"
+    phrase-fini: "Bien joué {joueur}, revenez demain !"
+
   objectif:
-    nom: "&b&lObjectif du moment"
-    ligne: "&f{texte}"
-    clic: "&8(( Clique pour y aller ))"
+    nom: "&bObjectif du moment"
+    lore:
+      - ""
+      - "&8&l« &7Ce que Jake vous conseille"
+      - "&7de faire maintenant. &8&l»"
+      - ""
+      - " &b➜ &f{texte}"
+      - "{description}"
+      - ""
+      - "{clic}"
+    clic: "&7&o(( &b&oCliquez pour y aller &7&o))"
+
   tache:
-    nom: "&f{texte}"
-    progression: "&7{actuel} sur {objectif}"
-    fait: "&a✔ Fait"
-    clic: "&8(( Clique pour y aller ))"
+    nom: "&b{texte}"
+    nom-fait: "&a✔ {texte}"
+    lore:
+      - "&8Tâche du jour {numero}/{total}"
+      - ""
+      - "{description}"
+      - ""
+      - " &b• &7Progression: &f{actuel}&7/&f{objectif}"
+      - " {barre}"
+      - ""
+      - "{clic}"
+    lore-fait:
+      - "&8Tâche du jour {numero}/{total}"
+      - ""
+      - "&a✔ &7Tâche faite, bravo !"
+    clic: "&7&o(( &b&oCliquez pour y aller &7&o))"
+    sans-clic: ""
+    barre-pleine: "&b■"
+    barre-vide: "&8■"
+    barre-cases: 10
+
   recompense:
-    nom-fermee: "&7Récompense du jour"
+    nom-fermee: "&6Récompense du jour"
     lore-fermee:
-      - "&7Termine les tâches du jour."
-    nom-prete: "&a&lRécompense du jour"
+      - ""
+      - "&8&l« &7Finissez les &6{total} tâches &7du jour"
+      - "&7pour débloquer ce coffre. &8&l»"
+      - ""
+      - " &6• &7Tâches faites: &f{faites}&7/&f{total}"
+    nom-prete: "&aRécompense du jour"
     lore-prete:
-      - "&a(( Clique pour la récupérer ))"
-    nom-prise: "&7Récompense prise"
+      - ""
+      - "&8&l« &7Les &a{total} tâches &7sont faites,"
+      - "&7votre récompense est prête ! &8&l»"
+      - ""
+      - "&7&o(( &a&oCliquez pour la récupérer &7&o))"
+    nom-prise: "&7Récompense récupérée"
     lore-prise:
-      - "&7Reviens demain."
+      - ""
+      - "&8&l« &7Revenez demain pour un"
+      - "&7nouveau programme. &8&l»"
+
   serie:
-    nom: "&6&lSérie de {serie} jour(s)"
-    prochain: "&7Plus que {reste} jour(s) pour le prochain palier."
-    record: "&7Record {record} jour(s)"
-    joker-oui: "&7Joker de la semaine disponible"
-    joker-non: "&8Joker de la semaine utilisé"
+    nom: "&6Série de {serie} jour(s)"
+    lore:
+      - ""
+      - "&8&l« &7Finissez votre programme chaque"
+      - "&7jour pour faire grimper votre série. &8&l»"
+      - ""
+      - " &6• &7Prochain palier: &fjour {palier} &7(dans {reste} j)"
+      - "{gain}"
+      - " &6• &7Record: &f{record} jour(s)"
+      - ""
+      - "{joker}"
+    gain: " &6• &7Gain du palier: &f{gain}"
+    # Ce que donne chaque palier de serie.paliers (config.yml), montré sous « Prochain palier ».
+    gains:
+      7: "un bonus"
+    joker-oui:
+      - "&a✔ &7Joker disponible: un jour raté"
+      - "&7cette semaine ne casse pas la série."
+    joker-non:
+      - "&8✘ &7Joker déjà utilisé cette semaine:"
+      - "&7un jour raté remet la série à zéro."
+
   aide:
-    nom: "&e&lComment faire…"
+    nom: "&eComment faire ?"
     lore:
-      - "&7Les réponses aux questions"
-      - "&7les plus posées."
+      - ""
+      - "&8&l« &7Les réponses aux questions que"
+      - "&7se posent les nouveaux joueurs. &8&l»"
+      - ""
+      - "&7&o(( &e&oCliquez pour ouvrir &7&o))"
+
   ile:
-    nom: "&a&lMon île"
+    nom: "&aMenu de votre île"
     lore:
-      - "&7Le menu de ton île."
+      - ""
+      - "&8&l« &7Téléportation, quêtes, membres"
+      - "&7et améliorations de votre &aîle&7. &8&l»"
+      - ""
+      - "&7&nCommande:&a /is"
+      - ""
+      - "&7&o(( &a&oCliquez pour ouvrir &7&o))"
+
   reglages:
-    nom: "&7&lRéglages de Jake"
+    nom: "&eParamètres du NPC Jake"
     lore:
-      - "&7Déplacer, cacher,"
-      - "&7changer son apparence."
+      - ""
+      - "&8&l« &7Affichez les options de"
+      - "&7modifications du &eNPC Jake &8&l»"
+      - ""
+      - "&7&o(( &e&oCliquez pour ouvrir &7&o))"
+
   retour:
-    nom: "&7Retour"
+    nom: "&c⤾ Retour &7(Clic)"
+    lore: []
 
 # Retour après une absence, pour les versions sans dialogues (le dialogue vient de SHDialogs)
 retour:
   chat:
-    - "&7&l« &e&lJake &8&l» &7Content de te revoir, &e{joueur} &7!"
-    - "&7Ton objectif du moment, &e{objectif}&7."
+    - "&7&l« &e&lJake &8&l» &7Content de vous revoir, &e{joueur} &7!"
+    - "&7Votre objectif du moment, &e{objectif}&7."
   nouveaute: "&8• &7{texte}"
   bouton: "&e&l[Voir Jake]"

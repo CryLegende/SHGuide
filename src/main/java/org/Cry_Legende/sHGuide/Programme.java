@@ -46,6 +46,7 @@ final class Programme {
             s.day = today.toString();
             s.palier = 0;
             s.baselines.clear();
+            s.choices.clear();
             s.done.clear();
             s.completed = false;
             Settings.TaskDef rot = cfg.rotatingFor(today);
@@ -65,7 +66,25 @@ final class Programme {
         }
         List<TaskView> views = new ArrayList<>();
         List<TaskView> newly = new ArrayList<>();
-        for (Settings.TaskDef def : cfg.tasksFor(today)) {
+        for (Settings.TaskDef planned : cfg.tasksFor(today)) {
+            Settings.TaskDef def = planned;
+            if (!planned.conditions().isEmpty()) {
+                String choice = s.choices.get(planned.id());
+                if (choice == null && canBaseline) {
+                    // décidé une fois par jour, au moment où les départs sont pris
+                    boolean keep = planned.conditions().stream().allMatch(c -> Condition.test(c, r));
+                    Settings.TaskDef alt = keep || !planned.fallbackRotating() ? null : cfg.alternateFor(today);
+                    choice = alt == null ? "garde" : alt.id();
+                    s.choices.put(planned.id(), choice);
+                    dirty = true;
+                }
+                if (choice != null && !choice.equals("garde")) {
+                    Settings.TaskDef alt = cfg.rotatingById(choice);
+                    if (alt != null) {
+                        def = alt;
+                    }
+                }
+            }
             double goal = def.goal(palier);
             double current = 0;
             if (def.isValue()) {

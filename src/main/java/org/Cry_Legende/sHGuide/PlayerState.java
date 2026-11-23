@@ -20,6 +20,8 @@ public final class PlayerState {
     public String rotating;
     /** Valeur de chaque compteur au début de la journée (tâche#numéro du compteur). */
     public Map<String, Double> baselines = new HashMap<>();
+    /** Tâches à condition, décidées une fois par jour : « garde » ou l'id de la tournante qui la remplace. */
+    public Map<String, String> choices = new HashMap<>();
     /** Tâches faites aujourd'hui. */
     public Set<String> done = new HashSet<>();
     /** Programme du jour complet. */
@@ -47,6 +49,9 @@ public final class PlayerState {
     PlayerState normalize() {
         if (baselines == null) {
             baselines = new HashMap<>();
+        }
+        if (choices == null) {
+            choices = new HashMap<>();
         }
         if (done == null) {
             done = new HashSet<>();

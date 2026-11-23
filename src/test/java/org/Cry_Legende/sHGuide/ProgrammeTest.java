@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -196,5 +197,48 @@ class ProgrammeTest {
         assertEquals(4, s.palier);
         assertEquals(12.0, t.tasks().get(2).goal());
         assertEquals("Sauter 12 fois", t.tasks().get(2).text());
+    }
+
+    @Test
+    void taskWithFalseConditionIsReplacedForTheDay() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.taches.creatif.si", List.of("%quete_active% != /"));
+        c.set("programme.taches.creatif.sinon", "tournante");
+        c.set("programme.tournantes.peche.texte", "Pêcher {objectif} poissons");
+        c.set("programme.tournantes.peche.compteurs", List.of("%statistic_fish_caught%"));
+        c.set("programme.tournantes.peche.objectif", List.of(2));
+        Settings two = Settings.read(c);
+        values.put("%statistic_fish_caught%", "5");
+        values.put("%quete_active%", "/");
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.Tick t = Programme.update(s, two, r, DAY);
+        String alt = two.alternateFor(DAY).id();
+        assertNotEquals(two.rotatingFor(DAY).id(), alt);
+        assertEquals(alt, s.choices.get("creatif"));
+        assertTrue(t.tasks().stream().anyMatch(v -> v.def().id().equals(alt)));
+        assertFalse(t.tasks().stream().anyMatch(v -> v.def().id().equals("creatif")));
+        // une quête qui redevient active dans la journée ne change plus le choix
+        values.put("%quete_active%", "p01_01");
+        Programme.update(s, two, r, DAY);
+        assertEquals(alt, s.choices.get("creatif"));
+        // le lendemain on redécide : la quête est active, la tâche est gardée
+        Programme.Tick next = Programme.update(s, two, r, DAY.plusDays(1));
+        assertEquals("garde", s.choices.get("creatif"));
+        assertTrue(next.tasks().stream().anyMatch(v -> v.def().id().equals("creatif")));
+    }
+
+    @Test
+    void noDecisionBeforeBaselineDelay() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.taches.creatif.si", List.of("%quete_active% != /"));
+        c.set("programme.taches.creatif.sinon", "tournante");
+        c.set("programme.tournantes.peche.texte", "Pêcher");
+        c.set("programme.tournantes.peche.compteurs", List.of("%statistic_fish_caught%"));
+        c.set("programme.tournantes.peche.objectif", List.of(2));
+        Settings two = Settings.read(c);
+        values.put("%quete_active%", "/");
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, two, r, DAY, false);
+        assertNull(s.choices.get("creatif"));
     }
 }

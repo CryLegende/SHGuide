@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Textes de messages.yml. Le fichier du jar sert de valeurs par défaut : une clé absente du fichier du serveur
@@ -52,6 +53,54 @@ public final class Messages {
             lines.add(replace(line, replacements));
         }
         return lines;
+    }
+
+    /** Bloc de lignes : une liste, ou un texte seul ; vide = aucune ligne. */
+    public List<String> block(String key, String... replacements) {
+        if (file.isList(key)) {
+            return lines(key, replacements);
+        }
+        String text = text(key, replacements);
+        return text.isEmpty() ? List.of() : List.of(text);
+    }
+
+    public int number(String key, int fallback) {
+        return file.getInt(key, fallback);
+    }
+
+    /**
+     * Lore d'un bouton : chaque ligne de « key » reçoit les remplacements ; une ligne faite seulement de {bloc}
+     * est remplacée par les lignes du bloc (aucune s'il est vide). Les lignes vides en double et en fin de lore
+     * disparaissent, pour qu'un bloc absent ne laisse pas de trou.
+     */
+    public List<String> lore(String key, Map<String, List<String>> blocks, String... replacements) {
+        List<String> out = new ArrayList<>();
+        for (String line : file.getStringList(key)) {
+            String t = line.trim();
+            if (t.startsWith("{") && t.endsWith("}") && blocks.containsKey(t.substring(1, t.length() - 1))) {
+                for (String b : blocks.get(t.substring(1, t.length() - 1))) {
+                    out.add(replace(b, replacements));
+                }
+            } else {
+                out.add(replace(line, replacements));
+            }
+        }
+        return tidy(out);
+    }
+
+    static List<String> tidy(List<String> lines) {
+        List<String> out = new ArrayList<>();
+        for (String l : lines) {
+            boolean blank = l.isBlank();
+            if (blank && (out.isEmpty() ? false : out.get(out.size() - 1).isBlank())) {
+                continue;
+            }
+            out.add(blank ? "" : l);
+        }
+        while (!out.isEmpty() && out.get(out.size() - 1).isBlank()) {
+            out.remove(out.size() - 1);
+        }
+        return out;
     }
 
     public static Component chat(String text) {

@@ -1,7 +1,6 @@
 package org.Cry_Legende.sHGuide;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -11,7 +10,6 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.SkullMeta;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -60,38 +58,23 @@ final class GuideMenu {
         frame(holder.inv, cfg);
 
         long left = t.tasks().stream().filter(v -> !v.done()).count();
+        int total = t.tasks().size();
         int serie = Streak.display(s.state, today);
-        String phrase;
-        if (!s.state.pending.isEmpty()) {
-            phrase = m.text("menu.jake.phrase-prete", "joueur", p.getName());
-        } else if (left == 0) {
-            phrase = m.text("menu.jake.phrase-fini", "joueur", p.getName());
-        } else if (left == t.tasks().size()) {
-            phrase = m.text("menu.jake.phrase-debut", "joueur", p.getName());
-        } else {
-            phrase = m.text("menu.jake.phrase-encours", "joueur", p.getName(), "reste", Long.toString(left));
-        }
-        ItemStack jake = item(icon(cfg, "jake", "PLAYER_HEAD"), m.text("menu.jake.nom"),
-                List.of(phrase, "", m.text("menu.jake.serie", "serie", Integer.toString(serie))));
-        if (jake.getItemMeta() instanceof SkullMeta skull) {
-            skull.setOwningPlayer(p);
-            jake.setItemMeta(skull);
-        }
-        holder.inv.setItem(slot(cfg, "jake"), jake);
+        String phraseKey = !s.state.pending.isEmpty() ? "phrase-prete"
+                : left == 0 ? "phrase-fini" : left == total ? "phrase-debut" : "phrase-encours";
+        String phrase = m.text("menu.jake." + phraseKey, "joueur", p.getName(), "reste", Long.toString(left));
+        holder.inv.setItem(slot(cfg, "jake"), item(icon(cfg, "jake", "PLAYER_HEAD"), m.text("menu.jake.nom"),
+                m.lore("menu.jake.lore", Map.of(), "phrase", phrase, "serie", Integer.toString(serie),
+                        "total", Integer.toString(total), "joueur", p.getName())));
 
         Objectives.Choice c = s.objective;
         String objText = c == null ? m.text("objectif.aucun") : c.text();
-        List<String> objLore = new ArrayList<>();
-        objLore.add(m.text("menu.objectif.ligne", "texte", objText));
         boolean objClick = c != null && !c.click().isEmpty();
-        if (c != null) {
-            objLore.addAll(c.lore());
-        }
-        if (objClick) {
-            objLore.add("");
-            objLore.add(m.text("menu.objectif.clic"));
-        }
-        holder.inv.setItem(slot(cfg, "objectif"), item(c == null ? "COMPASS" : c.icon(), m.text("menu.objectif.nom"), objLore));
+        Map<String, List<String>> objBlocks = new HashMap<>();
+        objBlocks.put("description", c == null ? List.of() : c.lore());
+        objBlocks.put("clic", objClick ? m.block("menu.objectif.clic") : List.of());
+        holder.inv.setItem(slot(cfg, "objectif"), item(c == null ? icon(cfg, "objectif", "COMPASS") : c.icon(),
+                m.text("menu.objectif.nom"), m.lore("menu.objectif.lore", objBlocks, "texte", objText)));
         if (objClick) {
             String click = c.click();
             holder.actions.put(slot(cfg, "objectif"), () -> {
@@ -104,19 +87,24 @@ final class GuideMenu {
             });
         }
 
-        for (int i = 0; i < t.tasks().size() && i < cfg.taskSlots().size(); i++) {
+        String doneIcon = icon(cfg, "fait", "");
+        for (int i = 0; i < total && i < cfg.taskSlots().size(); i++) {
             Programme.TaskView v = t.tasks().get(i);
-            List<String> lore = new ArrayList<>();
-            lore.add(v.done() ? m.text("menu.tache.fait")
-                    : m.text("menu.tache.progression", "actuel", Num.format(v.current()), "objectif", Num.format(v.goal())));
             boolean click = !v.done() && !v.def().click().isEmpty();
-            if (click) {
-                lore.add("");
-                lore.add(m.text("menu.tache.clic"));
+            Map<String, List<String>> blocks = new HashMap<>();
+            blocks.put("description", v.def().description());
+            blocks.put("clic", click ? m.block("menu.tache.clic") : m.block("menu.tache.sans-clic"));
+            String[] repl = {"texte", v.text(), "actuel", Num.format(Math.min(v.current(), v.goal())),
+                    "objectif", Num.format(v.goal()), "barre", bar(m, v.current(), v.goal()),
+                    "numero", Integer.toString(i + 1), "total", Integer.toString(total)};
+            String state = v.done() ? "-fait" : "";
+            ItemStack it = item(v.done() && !doneIcon.isEmpty() ? doneIcon : v.def().icon(),
+                    m.text("menu.tache.nom" + state, repl), m.lore("menu.tache.lore" + state, blocks, repl));
+            if (v.done() && doneIcon.isEmpty()) {
+                glint(it);
             }
             int slot = cfg.taskSlots().get(i);
-            holder.inv.setItem(slot, item(v.done() ? icon(cfg, "fait", "LIME_DYE") : v.def().icon(),
-                    m.text("menu.tache.nom", "texte", v.text()), lore));
+            holder.inv.setItem(slot, it);
             if (click) {
                 String command = v.def().click();
                 holder.actions.put(slot, () -> {
@@ -128,12 +116,11 @@ final class GuideMenu {
 
         boolean ready = !s.state.pending.isEmpty();
         String key = ready ? "prete" : s.state.completed ? "prise" : "fermee";
-        ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + key),
-                m.lines("menu.recompense.lore-" + key));
+        String[] rewardRepl = {"faites", Long.toString(total - left), "total", Integer.toString(total)};
+        ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + key, rewardRepl),
+                m.lore("menu.recompense.lore-" + key, Map.of(), rewardRepl));
         if (ready) {
-            ItemMeta meta = reward.getItemMeta();
-            meta.setEnchantmentGlintOverride(true);
-            reward.setItemMeta(meta);
+            glint(reward);
             holder.actions.put(slot(cfg, "recompense"), () -> {
                 claim(plugin, p);
                 open(plugin, p);
@@ -141,15 +128,17 @@ final class GuideMenu {
         }
         holder.inv.setItem(slot(cfg, "recompense"), reward);
 
-        holder.inv.setItem(slot(cfg, "aide"), item(icon(cfg, "aide", "BOOK"), m.text("menu.aide.nom"), m.lines("menu.aide.lore")));
+        holder.inv.setItem(slot(cfg, "aide"), item(icon(cfg, "aide", "BOOK"), m.text("menu.aide.nom"),
+                m.lore("menu.aide.lore", Map.of())));
         holder.actions.put(slot(cfg, "aide"), () -> openHelp(plugin, p));
-        holder.inv.setItem(slot(cfg, "ile"), item(icon(cfg, "ile", "GRASS_BLOCK"), m.text("menu.ile.nom"), m.lines("menu.ile.lore")));
+        holder.inv.setItem(slot(cfg, "ile"), item(icon(cfg, "ile", "GRASS_BLOCK"), m.text("menu.ile.nom"),
+                m.lore("menu.ile.lore", Map.of())));
         holder.actions.put(slot(cfg, "ile"), () -> {
             p.closeInventory();
             plugin.runCommands(p, List.of(cfg.islandCommand()));
         });
-        holder.inv.setItem(slot(cfg, "reglages"), item(icon(cfg, "reglages", "NAME_TAG"), m.text("menu.reglages.nom"),
-                m.lines("menu.reglages.lore")));
+        holder.inv.setItem(slot(cfg, "reglages"), item(icon(cfg, "reglages", "COMPARATOR"), m.text("menu.reglages.nom"),
+                m.lore("menu.reglages.lore", Map.of())));
         holder.actions.put(slot(cfg, "reglages"), () -> {
             p.closeInventory();
             plugin.runCommands(p, List.of(cfg.settingsCommand()));
@@ -157,12 +146,16 @@ final class GuideMenu {
 
         int position = serie == 0 ? 0 : ((serie - 1) % cfg.cycle()) + 1;
         int nextStep = cfg.stepDays().stream().filter(d -> d > position).min(Integer::compare).orElse(cfg.cycle());
-        List<String> serieLore = new ArrayList<>();
-        serieLore.add(m.text("menu.serie.prochain", "reste", Integer.toString(Math.max(1, nextStep - position))));
-        serieLore.add(m.text("menu.serie.record", "record", Integer.toString(s.state.best)));
-        serieLore.add(Streak.jokerAvailable(s.state, today) ? m.text("menu.serie.joker-oui") : m.text("menu.serie.joker-non"));
-        holder.inv.setItem(slot(cfg, "serie"), item(icon(cfg, "serie", "BLAZE_POWDER"),
-                m.text("menu.serie.nom", "serie", Integer.toString(serie)), serieLore));
+        Map<String, List<String>> serieBlocks = new HashMap<>();
+        serieBlocks.put("joker", Streak.jokerAvailable(s.state, today)
+                ? m.block("menu.serie.joker-oui") : m.block("menu.serie.joker-non"));
+        String gain = m.text("menu.serie.gains." + nextStep);
+        serieBlocks.put("gain", gain.isEmpty() ? List.of() : m.block("menu.serie.gain", "gain", gain));
+        holder.inv.setItem(slot(cfg, "serie"), item(icon(cfg, "serie", "CAMPFIRE"),
+                m.text("menu.serie.nom", "serie", Integer.toString(serie)),
+                m.lore("menu.serie.lore", serieBlocks, "serie", Integer.toString(serie),
+                        "reste", Integer.toString(Math.max(1, nextStep - position)), "palier", Integer.toString(nextStep),
+                        "record", Integer.toString(s.state.best))));
 
         if (!today.toString().equals(s.state.alertSeen)) {
             s.state.alertSeen = today.toString();
@@ -190,7 +183,8 @@ final class GuideMenu {
                 });
             }
         }
-        holder.inv.setItem(HELP_BACK, item(icon(cfg, "retour", "ARROW"), m.text("menu.retour.nom"), List.of()));
+        holder.inv.setItem(HELP_BACK, item(icon(cfg, "retour", "ARROW"), m.text("menu.retour.nom"),
+                m.lore("menu.retour.lore", Map.of())));
         holder.actions.put(HELP_BACK, () -> open(plugin, p));
         p.openInventory(holder.inv);
     }
@@ -240,9 +234,21 @@ final class GuideMenu {
         }
     }
 
-    private static ItemStack item(String material, String name, List<String> lore) {
-        Material mat = Material.matchMaterial(material);
-        ItemStack it = new ItemStack(mat == null || !mat.isItem() ? Material.PAPER : mat);
+    /** Barre de progression : « barre-cases » cases, pleines à la part faite. */
+    static String bar(Messages m, double current, double goal) {
+        int cells = Math.max(1, m.number("menu.tache.barre-cases", 10));
+        int full = goal <= 0 ? cells : (int) Math.floor(Math.max(0, Math.min(1, current / goal)) * cells);
+        return m.text("menu.tache.barre-pleine").repeat(full) + m.text("menu.tache.barre-vide").repeat(cells - full);
+    }
+
+    private static void glint(ItemStack it) {
+        ItemMeta meta = it.getItemMeta();
+        meta.setEnchantmentGlintOverride(true);
+        it.setItemMeta(meta);
+    }
+
+    private static ItemStack item(String icon, String name, List<String> lore) {
+        ItemStack it = Icons.make(icon);
         ItemMeta meta = it.getItemMeta();
         meta.displayName(Messages.item(name));
         meta.lore(lore.stream().map(Messages::item).toList());

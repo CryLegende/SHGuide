@@ -28,7 +28,8 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
      * depuis le début du jour) ou « valeur » (nombre lu tel quel, sans départ).
      */
     record TaskDef(String id, String text, String icon, String click, List<String> counters,
-                   List<String> countValues, String countEquals, String value, List<Integer> goals) {
+                   List<String> countValues, String countEquals, String value, List<Integer> goals,
+                   List<String> description, List<String> conditions, boolean fallbackRotating) {
 
         boolean isCount() {
             return !countValues.isEmpty();
@@ -58,6 +59,23 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
 
     TaskDef rotatingFor(LocalDate day) {
         return rotating.isEmpty() ? null : rotating.get((int) Math.floorMod(day.toEpochDay(), (long) rotating.size()));
+    }
+
+    /** Tâche tournante qui suit celle du jour : elle remplace une tâche dont la condition « si » est fausse. */
+    TaskDef alternateFor(LocalDate day) {
+        if (rotating.size() < 2) {
+            return null;
+        }
+        return rotating.get((int) Math.floorMod(day.toEpochDay() + 1, (long) rotating.size()));
+    }
+
+    TaskDef rotatingById(String id) {
+        for (TaskDef t : rotating) {
+            if (t.id().equals(id)) {
+                return t;
+            }
+        }
+        return null;
     }
 
     List<TaskDef> tasksFor(LocalDate day) {
@@ -214,6 +232,17 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
             if (kinds != 1) {
                 throw new IllegalArgumentException(path + "." + id + " : « compteurs », « compte » ou « valeur », un seul des trois");
             }
+            List<String> conditions = t.getStringList("si");
+            for (String cond : conditions) {
+                if (!Condition.valid(cond)) {
+                    throw new IllegalArgumentException(path + "." + id + ".si : condition illisible « " + cond + " »");
+                }
+            }
+            String sinon = t.getString("sinon", "");
+            if (!sinon.isEmpty() && !sinon.equals("tournante")) {
+                throw new IllegalArgumentException(path + "." + id + ".sinon : seule la valeur « tournante » existe");
+            }
+            boolean fallbackRotating = sinon.equals("tournante");
             for (int g : goals) {
                 if (g < 1) {
                     throw new IllegalArgumentException(path + "." + id + ".objectif : 1 au moins");
@@ -221,7 +250,8 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
             }
             out.add(new TaskDef(id, t.getString("texte", id), t.getString("icone", "PAPER"), t.getString("clic", ""),
                     List.copyOf(counters), List.copyOf(values), compte == null ? "" : compte.getString("egal", ""),
-                    value, List.copyOf(goals)));
+                    value, List.copyOf(goals), List.copyOf(t.getStringList("description")), List.copyOf(conditions),
+                    fallbackRotating));
         }
         return out;
     }

@@ -107,6 +107,7 @@ public final class SHGuide extends JavaPlugin {
             return false;
         }
         settings = s;
+        Icons.clear();
         messages = m;
         messages.send(sender, "reload-ok");
         return true;

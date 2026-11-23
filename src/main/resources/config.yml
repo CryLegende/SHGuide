@@ -81,6 +81,11 @@ programme:
   #               de la journée (la remise à zéro du plugin compté fait redescendre le départ)
   #   valeur      un placeholder numérique lu tel quel, sans départ (ex. les votes du jour, faits avant la connexion)
   #   objectif    quantité à atteindre, une seule valeur ou cinq (paliers 1 à 5)
+  #   description lignes du bouton dans le menu, sous le sous-titre (facultatif)
+  #   si          conditions (toutes vraies) pour garder la tâche ; décidé une fois par jour, au moment où les
+  #               départs sont pris (facultatif)
+  #   sinon       « tournante » : si une condition est fausse, la tâche est remplacée pour la journée par la
+  #               tâche tournante qui suit celle du jour (ex. une tâche de quête pour un joueur qui a tout fini)
   taches:
     niveau:
       texte: "Gagner un niveau d'XP"
@@ -211,19 +216,22 @@ menu:
     - 21
     - 22
     - 23
+  # Icônes : un matériau (CHEST), une tête HeadDatabase (hdb-<id>) ou une tête texturée (basehead-<base64>),
+  # comme dans DeluxeMenus. Vaut aussi pour les « icone » des tâches, objectifs et réponses.
   icones:
     jake: PLAYER_HEAD
     contour: BLACK_STAINED_GLASS_PANE
     accent: CYAN_STAINED_GLASS_PANE
-    fait: LIME_DYE
+    # vide = une tâche faite garde son icône, qui brille
+    fait: ""
     recompense-fermee: CHEST
-    recompense-prete: ENDER_CHEST
-    recompense-prise: BARREL
+    recompense-prete: CHEST
+    recompense-prise: CHEST
     aide: BOOK
     ile: GRASS_BLOCK
-    reglages: NAME_TAG
-    serie: BLAZE_POWDER
-    retour: ARROW
+    reglages: COMPARATOR
+    serie: CAMPFIRE
+    retour: PAPER
   ile-commande: "is"
   reglages-commande: "jake reglages"
 
