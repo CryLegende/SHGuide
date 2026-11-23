@@ -1,0 +1,50 @@
+name: SHGuide
+version: '${project.version}'
+main: org.Cry_Legende.sHGuide.SHGuide
+api-version: '1.20'
+author: Cry_Legende
+# Tâches, objectifs et retour sont lus par PlaceholderAPI : sans lui le guide n'a rien à compter.
+depend:
+  - PlaceholderAPI
+# Chargés par Paper dans le classloader du plugin : HikariCP doit voir le driver MariaDB,
+# que le serveur ne fournit pas (il n'embarque que MySQL et SQLite).
+libraries:
+  - com.zaxxer:HikariCP:5.1.0
+  - org.mariadb.jdbc:mariadb-java-client:3.4.1
+
+commands:
+  guide:
+    description: Ouvre le menu de Jake.
+    usage: /<command>
+  shguide:
+    description: Administration du guide (reload, info, annonce, set, reset).
+    usage: /<command> <reload|info|annonce|set|reset> ...
+
+permissions:
+  shguide.use:
+    description: Ouvrir le menu de Jake (/guide).
+    default: op
+  shguide.admin:
+    description: Toutes les sous-commandes de /shguide.
+    default: op
+    children:
+      shguide.admin.reload: true
+      shguide.admin.info: true
+      shguide.admin.annonce: true
+      shguide.admin.set: true
+      shguide.admin.reset: true
+  shguide.admin.reload:
+    description: Recharger config.yml et messages.yml.
+    default: op
+  shguide.admin.info:
+    description: Voir l'état du guide d'un joueur.
+    default: op
+  shguide.admin.annonce:
+    description: Annoncer un event qui commence bientôt.
+    default: op
+  shguide.admin.set:
+    description: Corriger la série ou les dates d'un joueur.
+    default: op
+  shguide.admin.reset:
+    description: Remettre à zéro le guide d'un joueur.
+    default: op
