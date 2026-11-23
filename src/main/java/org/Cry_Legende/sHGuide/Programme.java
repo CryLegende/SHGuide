@@ -32,6 +32,14 @@ final class Programme {
     }
 
     static Tick update(PlayerState s, Settings cfg, Resolver r, LocalDate today) {
+        return update(s, cfg, r, today, true);
+    }
+
+    /**
+     * @param canBaseline faux juste après la connexion : un compteur sans départ attend (les plugins chargent encore
+     *                    les données du joueur, et un nouveau joueur finit ses quêtes automatiques)
+     */
+    static Tick update(PlayerState s, Settings cfg, Resolver r, LocalDate today, boolean canBaseline) {
         boolean dirty = false;
         boolean dayChanged = false;
         if (!today.toString().equals(s.day)) {
@@ -45,15 +53,20 @@ final class Programme {
             dayChanged = true;
             dirty = true;
         }
-        if (s.palier == 0) {
+        int palier = s.palier;
+        if (palier == 0) {
             OptionalDouble p = Num.parse(r.resolve(cfg.palierPlaceholder()));
-            s.palier = (int) Math.max(1, Math.min(5, Math.round(p.orElse(1))));
-            dirty = true;
+            palier = (int) Math.max(1, Math.min(5, Math.round(p.orElse(1))));
+            // juste après la connexion, le palier sert sans être gardé : l'argent et l'île peuvent encore charger
+            if (canBaseline) {
+                s.palier = palier;
+                dirty = true;
+            }
         }
         List<TaskView> views = new ArrayList<>();
         List<TaskView> newly = new ArrayList<>();
         for (Settings.TaskDef def : cfg.tasksFor(today)) {
-            double goal = def.goal(s.palier);
+            double goal = def.goal(palier);
             double current = 0;
             if (def.isCount()) {
                 for (String v : def.countValues()) {
@@ -69,6 +82,9 @@ final class Programme {
                     }
                     String key = def.id() + "#" + k;
                     Double base = s.baselines.get(key);
+                    if (base == null && !canBaseline) {
+                        continue;
+                    }
                     if (base == null || v.getAsDouble() < base) {
                         s.baselines.put(key, v.getAsDouble());
                         dirty = true;

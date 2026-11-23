@@ -63,6 +63,10 @@ fuseau: Europe/Paris
 # Intervalle, en secondes, entre deux vérifications du programme et de l'objectif d'un joueur.
 verification-secondes: 10
 
+# Secondes après la connexion avant de prendre la valeur de départ d'un compteur : les plugins finissent de charger
+# les données du joueur, et un nouveau joueur termine ses quêtes automatiques.
+depart-apres-connexion-secondes: 30
+
 # Part de l'objectif d'une tâche à partir de laquelle elle devient « presque finie ».
 seuil-presque: 0.8
 

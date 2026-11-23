@@ -35,6 +35,7 @@ final class Sessions implements Listener {
         List<Settings.News> news = List.of();
         boolean dirty;
         long lastSave;
+        long joinedAt = System.currentTimeMillis();
     }
 
     private final SHGuide plugin;
@@ -120,7 +121,8 @@ final class Sessions implements Listener {
         Messages m = plugin.messages();
         Resolver r = text -> PlaceholderAPI.setPlaceholders(p, text);
         LocalDate today = plugin.today();
-        Programme.Tick t = Programme.update(s.state, cfg, r, today);
+        boolean canBaseline = System.currentTimeMillis() - s.joinedAt >= cfg.joinDelaySeconds() * 1000L;
+        Programme.Tick t = Programme.update(s.state, cfg, r, today, canBaseline);
         s.last = t;
         if (t.dirty()) {
             s.dirty = true;

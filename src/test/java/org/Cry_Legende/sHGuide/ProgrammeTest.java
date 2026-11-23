@@ -92,6 +92,33 @@ class ProgrammeTest {
     }
 
     @Test
+    void baselineWaitsUntilTheJoinDelayIsOver() {
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.Tick t = Programme.update(s, cfg, r, DAY, false);
+        assertNull(s.baselines.get("niveau#0"));
+        assertFalse(t.tasks().get(0).done());
+        values.put("%player_level%", "13");
+        Programme.update(s, cfg, r, DAY, true);
+        assertEquals(13.0, s.baselines.get("niveau#0"));
+        values.put("%player_level%", "14");
+        assertTrue(Programme.update(s, cfg, r, DAY, true).tasks().get(0).done());
+    }
+
+    @Test
+    void palierIsFrozenOnlyAfterTheJoinDelay() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("palier", "%palier%");
+        cfg = Settings.read(c);
+        values.put("%palier%", "1");
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY, false);
+        assertEquals(0, s.palier);
+        values.put("%palier%", "4");
+        Programme.update(s, cfg, r, DAY, true);
+        assertEquals(4, s.palier);
+    }
+
+    @Test
     void decreasingCounterRebases() {
         PlayerState s = PlayerState.fresh("Bot");
         Programme.update(s, cfg, r, DAY);
