@@ -117,8 +117,15 @@ final class GuideMenu {
         boolean ready = !s.state.pending.isEmpty();
         String key = ready ? "prete" : s.state.completed ? "prise" : "fermee";
         String[] rewardRepl = {"faites", Long.toString(total - left), "total", Integer.toString(total)};
+        Settings.DailyVariant todayGain = ready ? s.state.pending.stream().filter(id -> id.startsWith("jour"))
+                .findFirst().map(id -> pendingVariant(plugin, id)).orElse(null) : cfg.variantFor(today);
+        Settings.DailyVariant tomorrowGain = cfg.variantFor(today.plusDays(1));
+        Map<String, List<String>> rewardBlocks = new HashMap<>();
+        rewardBlocks.put("gain", todayGain == null ? List.of() : m.block("menu.recompense.gain", "gain", todayGain.text()));
+        rewardBlocks.put("demain", tomorrowGain == null ? List.of()
+                : m.block("menu.recompense.demain", "gain", tomorrowGain.text()));
         ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + key, rewardRepl),
-                m.lore("menu.recompense.lore-" + key, Map.of(), rewardRepl));
+                m.lore("menu.recompense.lore-" + key, rewardBlocks, rewardRepl));
         if (ready) {
             glint(reward);
             holder.actions.put(slot(cfg, "recompense"), () -> {
@@ -199,17 +206,31 @@ final class GuideMenu {
         List<String> pending = new ArrayList<>(s.state.pending);
         s.state.pending.clear();
         plugin.sessions().markDirty(p);
+        List<String> gains = new ArrayList<>();
         for (String id : pending) {
-            if (id.equals("jour")) {
+            if (id.equals("jour") || id.startsWith("jour:")) {
                 plugin.runCommands(p, plugin.settings().dailyReward());
+                Settings.DailyVariant v = pendingVariant(plugin, id);
+                if (v != null) {
+                    plugin.runCommands(p, v.commands());
+                    gains.add(v.text());
+                }
             } else if (id.startsWith("palier:")) {
                 int day = Integer.parseInt(id.substring("palier:".length()));
                 plugin.runCommands(p, plugin.settings().steps().getOrDefault(day, List.of()));
                 plugin.messages().send(p, "recompense-palier", "jour", Integer.toString(day));
             }
         }
-        plugin.messages().send(p, "recompense", "serie", Integer.toString(Streak.display(s.state, plugin.today())));
+        String gain = gains.isEmpty() ? "" : plugin.messages().text("chat.recompense-gain", "texte", String.join(", ", gains));
+        plugin.messages().send(p, "recompense", "serie", Integer.toString(Streak.display(s.state, plugin.today())),
+                "gain", gain);
         plugin.sound(p, "recompense");
+    }
+
+    /** « jour » (avant la 1.2) = la récompense d'aujourd'hui ; « jour:<id> » = celle du jour où le programme a été fini. */
+    static Settings.DailyVariant pendingVariant(SHGuide plugin, String id) {
+        Settings cfg = plugin.settings();
+        return id.startsWith("jour:") ? cfg.variantById(id.substring(5)) : cfg.variantFor(plugin.today());
     }
 
     private static int slot(Settings cfg, String key) {

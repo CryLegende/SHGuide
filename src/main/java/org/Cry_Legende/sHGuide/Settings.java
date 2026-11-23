@@ -16,7 +16,7 @@ import java.util.TreeMap;
 
 /** config.yml lu une fois par chargement ; tout est immuable ensuite. */
 record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double nearRatio, String palierPlaceholder,
-                List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward,
+                List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward, List<DailyVariant> dailyVariants,
                 int cycle, Map<Integer, List<String>> steps, List<ObjectiveDef> objectives,
                 int returnDays, long returnDelayTicks, String dialogCondition, List<String> dialogCommands,
                 List<News> news, int newsMax, int annonceBeforeMinutes, int annonceGraceMinutes,
@@ -52,6 +52,25 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
     }
 
     record News(LocalDate date, String text) {
+    }
+
+    /** Récompense en plus de « recompense », différente selon le jour (programme.recompenses-du-jour). */
+    record DailyVariant(String id, String text, List<String> commands) {
+    }
+
+    /** Récompense du jour en plus : la même pour tout le serveur, dans l'ordre de recompenses-ordre ; null si aucune. */
+    DailyVariant variantFor(LocalDate day) {
+        return dailyVariants.isEmpty() ? null
+                : dailyVariants.get((int) Math.floorMod(day.toEpochDay(), (long) dailyVariants.size()));
+    }
+
+    DailyVariant variantById(String id) {
+        for (DailyVariant v : dailyVariants) {
+            if (v.id().equals(id)) {
+                return v;
+            }
+        }
+        return null;
     }
 
     record DbConfig(String host, int port, String database, String user, String password) {
@@ -198,7 +217,7 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 Math.max(1, c.getInt("verification-secondes", 10)), Math.max(0, c.getInt("depart-apres-connexion-secondes", 30)),
                 c.getDouble("seuil-presque", 0.8),
                 c.getString("palier", "1"), List.copyOf(tasks), List.copyOf(rotating),
-                List.copyOf(prog.getStringList("recompense")), cycle, steps, List.copyOf(objectives),
+                List.copyOf(prog.getStringList("recompense")), variants(prog), cycle, steps, List.copyOf(objectives),
                 Math.max(1, ret.getInt("jours", 3)), Math.max(0, ret.getLong("delai-ticks", 60)),
                 ret.getString("dialogue-si", ""), List.copyOf(ret.getStringList("dialogue")), List.copyOf(news),
                 Math.max(0, ret.getInt("nouveautes-max", 2)), Math.max(0, c.getInt("annonce-avant-minutes", 15)),
@@ -207,6 +226,34 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 menu.getString("reglages-commande", "jake reglages"), icons, List.copyOf(help), sounds,
                 new DbConfig(db.getString("hote", "127.0.0.1"), db.getInt("port", 3306), db.getString("base", "minecraft"),
                         db.getString("utilisateur", ""), db.getString("mot-de-passe", "")));
+    }
+
+    private static List<DailyVariant> variants(ConfigurationSection prog) {
+        ConfigurationSection sec = prog.getConfigurationSection("recompenses-du-jour");
+        if (sec == null) {
+            return List.of();
+        }
+        Map<String, DailyVariant> byId = new LinkedHashMap<>();
+        for (String id : sec.getKeys(false)) {
+            ConfigurationSection v = sec.getConfigurationSection(id);
+            if (v == null) {
+                throw new IllegalArgumentException("programme.recompenses-du-jour." + id + " : section attendue");
+            }
+            byId.put(id, new DailyVariant(id, v.getString("texte", id), List.copyOf(v.getStringList("commandes"))));
+        }
+        List<String> order = prog.getStringList("recompenses-ordre");
+        if (order.isEmpty()) {
+            return List.copyOf(byId.values());
+        }
+        List<DailyVariant> out = new ArrayList<>();
+        for (String id : order) {
+            DailyVariant v = byId.get(id);
+            if (v == null) {
+                throw new IllegalArgumentException("programme.recompenses-ordre : « " + id + " » absent de recompenses-du-jour");
+            }
+            out.add(v);
+        }
+        return List.copyOf(out);
     }
 
     private static List<TaskDef> tasks(ConfigurationSection prog, String path, String key) {

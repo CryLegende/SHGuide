@@ -122,6 +122,21 @@ programme:
   # Commandes lancées quand le joueur récupère un jour complet.
   recompense:
     - "[console] give {joueur} diamond 1"
+  # Récompense en plus (facultatif), différente chaque jour et la même pour tout le serveur : recompenses-ordre
+  # est parcouru jour après jour (ordre des clés de recompenses-du-jour s'il manque). Un programme fini puis
+  # récupéré après minuit garde la récompense de son jour. Le menu montre celle d'aujourd'hui et de demain.
+  recompenses-du-jour:
+    diamant:
+      texte: "1 diamant"
+      commandes:
+        - "[console] give {joueur} diamond 1"
+    emeraude:
+      texte: "1 émeraude"
+      commandes:
+        - "[console] give {joueur} emerald 1"
+  recompenses-ordre:
+    - diamant
+    - emeraude
 
 serie:
   # Les paliers recommencent après ce nombre de jours (jour 37 = palier 7).

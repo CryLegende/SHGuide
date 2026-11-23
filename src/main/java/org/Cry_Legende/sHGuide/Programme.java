@@ -138,6 +138,12 @@ final class Programme {
         if (!s.completed && !views.isEmpty() && views.stream().allMatch(TaskView::done)) {
             s.completed = true;
             Streak.onComplete(s, today, cfg.cycle(), cfg.stepDays());
+            Settings.DailyVariant variant = cfg.variantFor(today);
+            int at = s.pending.lastIndexOf("jour");
+            if (variant != null && at >= 0) {
+                // la récompense du jour gardée telle qu'elle était, même prise après minuit
+                s.pending.set(at, "jour:" + variant.id());
+            }
             completed = true;
             dirty = true;
         }

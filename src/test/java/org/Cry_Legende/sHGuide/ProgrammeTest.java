@@ -62,7 +62,7 @@ class ProgrammeTest {
         t = Programme.update(s, cfg, r, DAY);
         assertTrue(t.newlyCompleted());
         assertEquals(1, s.streak);
-        assertEquals(List.of("jour"), s.pending);
+        assertEquals(List.of("jour:" + cfg.variantFor(DAY).id()), s.pending);
     }
 
     @Test
@@ -240,5 +240,35 @@ class ProgrammeTest {
         PlayerState s = PlayerState.fresh("Bot");
         Programme.update(s, two, r, DAY, false);
         assertNull(s.choices.get("creatif"));
+    }
+
+    @Test
+    void dailyVariantRotatesAndIsKeptInPending() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.recompenses-du-jour.cle.texte", "1 clé");
+        c.set("programme.recompenses-du-jour.cle.commandes", List.of("[console] key {joueur}"));
+        c.set("programme.recompenses-du-jour.lucky.texte", "1 lucky");
+        c.set("programme.recompenses-du-jour.lucky.commandes", List.of("[console] lucky {joueur}"));
+        c.set("programme.recompenses-ordre", List.of("cle", "lucky"));
+        Settings v = Settings.read(c);
+        assertNotEquals(v.variantFor(DAY).id(), v.variantFor(DAY.plusDays(1)).id());
+        assertEquals(v.variantFor(DAY).id(), v.variantFor(DAY.plusDays(2)).id());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, v, r, DAY);
+        values.put("%player_level%", "11");
+        values.put("%player_gamemode%", "CREATIVE");
+        values.put("%statistic_jump%", "200");
+        Programme.Tick t = Programme.update(s, v, r, DAY);
+        assertTrue(t.newlyCompleted());
+        assertTrue(s.pending.contains("jour:" + v.variantFor(DAY).id()));
+        assertFalse(s.pending.contains("jour"));
+    }
+
+    @Test
+    void unknownOrderIdIsRefused() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.recompenses-du-jour.cle.texte", "1 clé");
+        c.set("programme.recompenses-ordre", List.of("cle", "absent"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> Settings.read(c));
     }
 }

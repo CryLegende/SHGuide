@@ -16,7 +16,9 @@ chat:
   reste-plusieurs: "plus que {n}"
   reste-une: "plus qu'une"
   programme-complet: "&7&l« &a&lJake &8&l» &7Programme du jour &acomplet &7! Votre récompense vous attend dans &a/jake&7."
-  recompense: "&7&l« &a&lJake &8&l» &7Récompense récupérée. Série de &a{serie} jour(s)&7."
+  recompense: "&7&l« &a&lJake &8&l» &7Récompense récupérée{gain}&7. Série de &a{serie} jour(s)&7."
+  # {gain} du message ci-dessus quand une récompense du jour s'ajoute (programme.recompenses-du-jour)
+  recompense-gain: " : &a{texte}"
   recompense-palier: "&7&l« &a&lJake &8&l» &7Palier de série atteint, &a{jour} jours &7!"
   rien-a-prendre: "&7&l« &e&lJake &8&l» &7Rien à récupérer pour l'instant."
   chargement: "&7&l« &e&lJake &8&l» &7Votre guide se charge, réessayez dans une seconde."
@@ -102,11 +104,15 @@ menu:
       - "&7pour débloquer ce coffre. &8&l»"
       - ""
       - " &6• &7Tâches faites: &f{faites}&7/&f{total}"
+      - "{gain}"
+      - "{demain}"
     nom-prete: "&aRécompense du jour"
     lore-prete:
       - ""
       - "&8&l« &7Les &a{total} tâches &7sont faites,"
       - "&7votre récompense est prête ! &8&l»"
+      - ""
+      - "{gain}"
       - ""
       - "&7&o(( &a&oCliquez pour la récupérer &7&o))"
     nom-prise: "&7Récompense récupérée"
@@ -114,6 +120,11 @@ menu:
       - ""
       - "&8&l« &7Revenez demain pour un"
       - "&7nouveau programme. &8&l»"
+      - ""
+      - "{demain}"
+    # Lignes {gain} et {demain} : la récompense en plus d'aujourd'hui et de demain (programme.recompenses-du-jour)
+    gain: " &6• &7Récompense du jour: &f{gain}"
+    demain: " &8• &7Demain: &f{gain}"
 
   serie:
     nom: "&6Série de {serie} jour(s)"
