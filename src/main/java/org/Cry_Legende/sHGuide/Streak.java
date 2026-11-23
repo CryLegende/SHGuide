@@ -67,8 +67,16 @@ final class Streak {
         return coverable(s, missed(last, today)) ? s.streak : 0;
     }
 
+    /** Faux si le joker de la semaine est utilisé, ou déjà pris par un jour raté de cette semaine pas encore couvert. */
     static boolean jokerAvailable(PlayerState s, LocalDate today) {
-        return !s.jokerWeeks.contains(week(today));
+        String thisWeek = week(today);
+        if (s.jokerWeeks.contains(thisWeek)) {
+            return false;
+        }
+        if (s.lastComplete == null) {
+            return true;
+        }
+        return missed(LocalDate.parse(s.lastComplete), today).stream().noneMatch(d -> week(d).equals(thisWeek));
     }
 
     static List<LocalDate> missed(LocalDate last, LocalDate day) {

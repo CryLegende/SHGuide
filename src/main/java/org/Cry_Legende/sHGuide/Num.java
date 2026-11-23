@@ -17,7 +17,8 @@ final class Num {
             return OptionalDouble.empty();
         }
         try {
-            return OptionalDouble.of(Double.parseDouble(t));
+            double d = Double.parseDouble(t);
+            return Double.isFinite(d) ? OptionalDouble.of(d) : OptionalDouble.empty();
         } catch (NumberFormatException e) {
             return OptionalDouble.empty();
         }

@@ -77,7 +77,9 @@ programme:
   # Tâches données chaque jour à tout le monde.
   #   compteurs   placeholders numériques : la tâche avance de ce qu'ils gagnent depuis le début de la journée
   #               (plusieurs compteurs s'additionnent)
-  #   compte      placeholders comptés quand ils valent « egal » (valeur du moment, pas d'écart)
+  #   compte      placeholders comptés quand ils valent « egal » ; la tâche avance de ce nombre depuis le début
+  #               de la journée (la remise à zéro du plugin compté fait redescendre le départ)
+  #   valeur      un placeholder numérique lu tel quel, sans départ (ex. les votes du jour, faits avant la connexion)
   #   objectif    quantité à atteindre, une seule valeur ou cinq (paliers 1 à 5)
   taches:
     niveau:

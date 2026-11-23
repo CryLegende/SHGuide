@@ -19,7 +19,7 @@
 | Partie | Effet |
 |---|---|
 | Objectif du moment | Le premier objectif de `objectifs` dont les conditions sont vraies : event qui commence bientôt, récompense à prendre, tâche presque finie, quête en cours… Un clic y emmène. |
-| Programme du jour | Les tâches de `programme.taches` et une tâche tournante (`programme.tournantes`, une par jour pour tout le serveur), remises à zéro à minuit. Une tâche avance de ce que ses compteurs gagnent depuis le début de la journée, ou compte des valeurs égales à un texte. Quantités par palier (1 à 5). |
+| Programme du jour | Les tâches de `programme.taches` et une tâche tournante (`programme.tournantes`, une par jour pour tout le serveur), remises à zéro à minuit. Une tâche avance de ce que ses compteurs gagnent depuis le début de la journée, compte des valeurs égales à un texte, ou lit un nombre tel quel (`valeur`, par exemple les votes du jour faits avant la connexion). Les départs sont pris `depart-apres-connexion-secondes` après la connexion. Un joueur sans ligne dans le guide reprend la dernière venue gardée par le serveur. Quantités par palier (1 à 5). |
 | Récompense et série | Un jour complet donne `programme.recompense` et fait avancer la série. Un jour raté par semaine est pardonné (joker, rendu chaque lundi). Les paliers de `serie.paliers` reviennent tous les `serie.cycle` jours. |
 | Comment faire… | Un sous-menu de dix questions au plus (`aide`) : chaque bouton lance ses commandes ou explique en une ligne. |
 | Retour guidé | Après `retour.jours` jours d'absence, un dialogue (ou le chat pour les anciennes versions) donne les nouveautés parues depuis la dernière venue et l'objectif du moment. |

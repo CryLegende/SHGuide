@@ -22,6 +22,16 @@ final class Retour {
         return lastSeen != null && ChronoUnit.DAYS.between(LocalDate.parse(lastSeen), today) >= days;
     }
 
+    /**
+     * Joueur sans ligne dans le guide (premier passage depuis l'arrivée du guide) : sa dernière venue est celle que le
+     * serveur a gardée, pour qu'un ancien joueur de retour soit accueilli dès le premier jour.
+     */
+    static void seedLastSeen(PlayerState s, long lastSeenMillis, java.time.ZoneId zone) {
+        if (s.lastSeen == null && lastSeenMillis > 0) {
+            s.lastSeen = java.time.Instant.ofEpochMilli(lastSeenMillis).atZone(zone).toLocalDate().toString();
+        }
+    }
+
     /** Nouveautés parues après la dernière venue et pas après aujourd'hui, les plus récentes d'abord. */
     static List<Settings.News> newsSince(List<Settings.News> all, String lastSeen, LocalDate today, int max) {
         if (lastSeen == null) {

@@ -29,6 +29,23 @@ class RetourTest {
     }
 
     @Test
+    void lastSeenIsSeededFromTheServerForANewRecord() {
+        PlayerState s = PlayerState.fresh("Bot");
+        long millis = java.time.ZonedDateTime.of(2026, 11, 10, 22, 0, 0, 0, java.time.ZoneId.of("Europe/Paris")).toInstant().toEpochMilli();
+        Retour.seedLastSeen(s, millis, java.time.ZoneId.of("Europe/Paris"));
+        assertEquals("2026-11-10", s.lastSeen);
+        Retour.seedLastSeen(s, 0, java.time.ZoneId.of("Europe/Paris"));
+        assertEquals("2026-11-10", s.lastSeen);
+        PlayerState known = PlayerState.fresh("Bot");
+        known.lastSeen = "2026-11-22";
+        Retour.seedLastSeen(known, millis, java.time.ZoneId.of("Europe/Paris"));
+        assertEquals("2026-11-22", known.lastSeen);
+        PlayerState never = PlayerState.fresh("Bot");
+        Retour.seedLastSeen(never, 0, java.time.ZoneId.of("Europe/Paris"));
+        assertEquals(null, never.lastSeen);
+    }
+
+    @Test
     void newsAfterLastVisitNewestFirst() {
         var all = List.of(new Settings.News(LocalDate.parse("2026-11-18"), "a"),
                 new Settings.News(LocalDate.parse("2026-11-21"), "b"),

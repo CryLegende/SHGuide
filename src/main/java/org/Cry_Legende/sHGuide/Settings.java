@@ -23,12 +23,19 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 Map<String, Integer> slots, List<Integer> taskSlots, String islandCommand, String settingsCommand,
                 Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db) {
 
-    /** Tâche du programme : « compteurs » (écart depuis le début du jour) ou « compte » (valeurs égales à egal). */
+    /**
+     * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
+     * depuis le début du jour) ou « valeur » (nombre lu tel quel, sans départ).
+     */
     record TaskDef(String id, String text, String icon, String click, List<String> counters,
-                   List<String> countValues, String countEquals, List<Integer> goals) {
+                   List<String> countValues, String countEquals, String value, List<Integer> goals) {
 
         boolean isCount() {
             return !countValues.isEmpty();
+        }
+
+        boolean isValue() {
+            return !value.isEmpty();
         }
 
         int goal(int palier) {
@@ -202,12 +209,19 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
             ConfigurationSection compte = t.getConfigurationSection("compte");
             List<String> counters = t.getStringList("compteurs");
             List<String> values = compte == null ? List.of() : compte.getStringList("valeurs");
-            if (counters.isEmpty() == values.isEmpty()) {
-                throw new IllegalArgumentException(path + "." + id + " : « compteurs » ou « compte », un seul des deux");
+            String value = t.getString("valeur", "");
+            int kinds = (counters.isEmpty() ? 0 : 1) + (values.isEmpty() ? 0 : 1) + (value.isEmpty() ? 0 : 1);
+            if (kinds != 1) {
+                throw new IllegalArgumentException(path + "." + id + " : « compteurs », « compte » ou « valeur », un seul des trois");
+            }
+            for (int g : goals) {
+                if (g < 1) {
+                    throw new IllegalArgumentException(path + "." + id + ".objectif : 1 au moins");
+                }
             }
             out.add(new TaskDef(id, t.getString("texte", id), t.getString("icone", "PAPER"), t.getString("clic", ""),
                     List.copyOf(counters), List.copyOf(values), compte == null ? "" : compte.getString("egal", ""),
-                    List.copyOf(goals)));
+                    value, List.copyOf(goals)));
         }
         return out;
     }

@@ -68,11 +68,24 @@ final class Programme {
         for (Settings.TaskDef def : cfg.tasksFor(today)) {
             double goal = def.goal(palier);
             double current = 0;
-            if (def.isCount()) {
+            if (def.isValue()) {
+                current = Math.max(0, Num.parse(r.resolve(def.value())).orElse(0));
+            } else if (def.isCount()) {
+                // écart depuis le début du jour, comme un compteur : juste après minuit, le plugin compté peut
+                // montrer encore les quêtes d'hier ; sa remise à zéro fait redescendre le départ
+                double count = 0;
                 for (String v : def.countValues()) {
                     if (r.resolve(v).trim().equalsIgnoreCase(def.countEquals())) {
-                        current++;
+                        count++;
                     }
+                }
+                String key = def.id() + "#compte";
+                Double base = s.baselines.get(key);
+                if (base == null && canBaseline || base != null && count < base) {
+                    s.baselines.put(key, count);
+                    dirty = true;
+                } else if (base != null) {
+                    current = count - base;
                 }
             } else {
                 for (int k = 0; k < def.counters().size(); k++) {

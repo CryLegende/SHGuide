@@ -119,6 +119,32 @@ class ProgrammeTest {
     }
 
     @Test
+    void valueTaskCountsWhatWasDoneBeforeJoining() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.taches.vote.texte", "Voter une fois");
+        c.set("programme.taches.vote.valeur", "%votes_jour%");
+        c.set("programme.taches.vote.objectif", List.of(1));
+        cfg = Settings.read(c);
+        values.put("%votes_jour%", "1");
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.Tick t = Programme.update(s, cfg, r, DAY, true);
+        assertTrue(t.tasks().stream().filter(v -> v.def().id().equals("vote")).findFirst().orElseThrow().done());
+    }
+
+    @Test
+    void countTaskIgnoresYesterdayUntilTheReset() {
+        PlayerState s = PlayerState.fresh("Bot");
+        values.put("%player_gamemode%", "CREATIVE");
+        // minuit passé, mais le plugin compté n'a pas encore remis ses quêtes à zéro
+        Programme.Tick t = Programme.update(s, cfg, r, DAY, true);
+        assertFalse(t.tasks().get(1).done());
+        values.put("%player_gamemode%", "SURVIVAL");
+        Programme.update(s, cfg, r, DAY, true);
+        values.put("%player_gamemode%", "CREATIVE");
+        assertTrue(Programme.update(s, cfg, r, DAY, true).tasks().get(1).done());
+    }
+
+    @Test
     void decreasingCounterRebases() {
         PlayerState s = PlayerState.fresh("Bot");
         Programme.update(s, cfg, r, DAY);

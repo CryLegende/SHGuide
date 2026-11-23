@@ -20,7 +20,7 @@ class ObjectivesTest {
     }
 
     private static Programme.TaskView task(String id, double cur, double goal, String click) {
-        var def = new Settings.TaskDef(id, id, "PAPER", click, List.of("%x%"), List.of(), "", List.of((int) goal));
+        var def = new Settings.TaskDef(id, id, "PAPER", click, List.of("%x%"), List.of(), "", "", List.of((int) goal));
         return new Programme.TaskView(def, "Pêcher 120 poissons", cur, goal, cur >= goal);
     }
 

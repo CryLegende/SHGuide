@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -40,6 +41,8 @@ final class Sessions implements Listener {
 
     private final SHGuide plugin;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
+    /** Dernière venue gardée par le serveur, lue avant que la connexion ne la remplace. */
+    private final Map<UUID, Long> serverLastSeen = new ConcurrentHashMap<>();
     private final ExecutorService io = Executors.newSingleThreadExecutor(r -> new Thread(r, "SHGuide-SQL"));
     private int cursor;
 
@@ -49,6 +52,13 @@ final class Sessions implements Listener {
 
     Session get(UUID id) {
         return sessions.get(id);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPreLogin(AsyncPlayerPreLoginEvent e) {
+        if (e.getLoginResult() == AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+            serverLastSeen.put(e.getUniqueId(), Bukkit.getOfflinePlayer(e.getUniqueId()).getLastSeen());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -70,6 +80,10 @@ final class Sessions implements Listener {
             }
             PlayerState state = stored == null ? PlayerState.fresh(name) : stored;
             state.name = name;
+            Long seen = serverLastSeen.remove(id);
+            if (stored == null && seen != null) {
+                Retour.seedLastSeen(state, seen, plugin.settings().zone());
+            }
             plugin.sync(() -> {
                 if (!p.isOnline()) {
                     return;
@@ -85,6 +99,7 @@ final class Sessions implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
+        serverLastSeen.remove(e.getPlayer().getUniqueId());
         Session s = sessions.remove(e.getPlayer().getUniqueId());
         if (s != null) {
             s.state.lastSeen = plugin.today().toString();

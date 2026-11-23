@@ -44,6 +44,15 @@ class StreakTest {
     }
 
     @Test
+    void jokerIsSpokenForByAnUncoveredMissedDay() {
+        PlayerState s = PlayerState.fresh("Bot");
+        Streak.onComplete(s, d("2026-11-23"), 30, STEPS);
+        // mardi 24 raté : mercredi 25, le joker de la semaine couvre déjà ce jour
+        assertFalse(Streak.jokerAvailable(s, d("2026-11-25")));
+        assertTrue(Streak.jokerAvailable(s, d("2026-11-24")));
+    }
+
+    @Test
     void secondMissedDaySameWeekResets() {
         PlayerState s = PlayerState.fresh("Bot");
         Streak.onComplete(s, d("2026-11-23"), 30, STEPS);

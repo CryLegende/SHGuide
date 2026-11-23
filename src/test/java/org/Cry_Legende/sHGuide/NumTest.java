@@ -24,6 +24,9 @@ class NumTest {
         assertTrue(Num.parse("Chargement...").isEmpty());
         assertTrue(Num.parse("").isEmpty());
         assertTrue(Num.parse(null).isEmpty());
+        assertTrue(Num.parse("NaN").isEmpty());
+        assertTrue(Num.parse("Infinity").isEmpty());
+        assertTrue(Num.parse("-Infinity").isEmpty());
     }
 
     @Test
