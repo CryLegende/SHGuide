@@ -1,0 +1,236 @@
+# ======================================================================== #
+#                         SHGuide - Configuration                          #
+# ======================================================================== #
+#
+# Jake, le guide du joueur : objectif du moment, programme du jour avec sa série, retour guidé après une
+# absence et réponses aux questions fréquentes (« Comment faire… »). Le plugin ne connaît aucun autre plugin :
+# tout passe par des placeholders (PlaceholderAPI) et des commandes écrits ici.
+#
+# Commandes :
+#   /guide                                        Ouvre le menu de Jake (shguide.use).
+#   /shguide reload                               Recharge config.yml et messages.yml.
+#   /shguide info <joueur>                        Programme, série et dates d'un joueur.
+#   /shguide annonce <minutes> <texte> | <clic>   Event qui commence dans <minutes> : il devient l'objectif du moment.
+#   /shguide set <joueur> <serie|jour|derniere-venue|dernier-complet> <valeur>   Corrige un joueur (dates 2026-11-23).
+#   /shguide reset <joueur>                       Remet le guide du joueur à zéro.
+#
+# Permissions :
+#   shguide.use                     Ouvrir le menu (/guide, clic sur Jake).
+#   shguide.admin                   Toutes les sous-commandes de /shguide.
+#   shguide.admin.<sous-commande>   reload, info, annonce, set, reset.
+#
+# Placeholders :
+#   %shguide_objectif%           Texte court de l'objectif du moment (scoreboard).
+#   %shguide_objectif_detail%    Première ligne de description de l'objectif.
+#   %shguide_programme%          Tâches faites aujourd'hui (2).
+#   %shguide_programme_total%    Tâches du jour (4).
+#   %shguide_serie%              Série actuelle en jours.
+#   %shguide_record%             Meilleure série.
+#   %shguide_joker%              oui si le joker de la semaine est encore là, sinon non.
+#   %shguide_recompense_prete%   oui si une récompense attend dans le menu.
+#   %shguide_alerte%             oui si Jake a quelque chose pour le joueur (récompense, première visite du jour).
+#   %shguide_nouveautes_nombre%  Nouveautés depuis la dernière venue (0 à nouveautes-max).
+#   %shguide_nouveaute_<n>%      Texte de la n-ième nouveauté (vide s'il n'y en a pas).
+#
+# Conditions : « A opérateur B », les deux côtés passent par les placeholders du joueur.
+#   Opérateurs : ==  !=  >=  <=  >  <  et ~ (expression régulière cherchée dans A, B n'est pas lu par PlaceholderAPI).
+#   Deux nombres se comparent comme des nombres (« 12 273 » et « 5.0 » sont lus), sinon comme du texte sans la casse.
+#
+# Jetons des objectifs : {i} (boucle), {joueur}, {annonce} {annonce_texte} {annonce_clic}, {recompense_prete},
+#   {tache_proche} {tache_proche_texte} {tache_proche_clic}, {tache_suivante} {tache_suivante_texte} {tache_suivante_clic}.
+#   Les jetons oui/non valent « oui » ou « non ».
+# Jetons des tâches : {objectif} (quantité du palier).
+# Commandes : lancées par le joueur, sauf celles qui commencent par [console] ({joueur} = son pseudo).
+#
+# Un reload valide config.yml et messages.yml avant de les appliquer : si l'un est invalide, rien ne change et le
+# message donne le fichier et l'erreur. Demande un redémarrage : base-de-donnees.
+#
+# ======================================================================== #
+
+base-de-donnees:
+  hote: 127.0.0.1
+  port: 3306
+  base: minecraft
+  utilisateur: utilisateur
+  mot-de-passe: "CHANGE_ME"
+
+# Fuseau des journées : le programme repart à minuit dans ce fuseau.
+fuseau: Europe/Paris
+
+# Intervalle, en secondes, entre deux vérifications du programme et de l'objectif d'un joueur.
+verification-secondes: 10
+
+# Part de l'objectif d'une tâche à partir de laquelle elle devient « presque finie ».
+seuil-presque: 0.8
+
+# Palier du joueur (1 à 5), lu à sa première vérification du jour et gardé jusqu'à minuit.
+palier: "1"
+
+programme:
+  # Tâches données chaque jour à tout le monde.
+  #   compteurs   placeholders numériques : la tâche avance de ce qu'ils gagnent depuis le début de la journée
+  #               (plusieurs compteurs s'additionnent)
+  #   compte      placeholders comptés quand ils valent « egal » (valeur du moment, pas d'écart)
+  #   objectif    quantité à atteindre, une seule valeur ou cinq (paliers 1 à 5)
+  taches:
+    niveau:
+      texte: "Gagner un niveau d'XP"
+      icone: EXPERIENCE_BOTTLE
+      clic: ""
+      compteurs:
+        - "%player_level%"
+      objectif:
+        - 1
+    creatif:
+      texte: "Passer en mode créatif"
+      icone: GRASS_BLOCK
+      clic: ""
+      compte:
+        valeurs:
+          - "%player_gamemode%"
+        egal: "CREATIVE"
+      objectif:
+        - 1
+  # Tâches tournantes : une seule par jour, la même pour tout le serveur, chacune à son tour.
+  tournantes:
+    sauts:
+      texte: "Sauter {objectif} fois"
+      icone: RABBIT_FOOT
+      clic: ""
+      compteurs:
+        - "%statistic_jump%"
+      objectif:
+        - 3
+        - 6
+        - 9
+        - 12
+        - 15
+  # Commandes lancées quand le joueur récupère un jour complet.
+  recompense:
+    - "[console] give {joueur} diamond 1"
+
+serie:
+  # Les paliers recommencent après ce nombre de jours (jour 37 = palier 7).
+  cycle: 30
+  # Commandes données en plus de la récompense du jour quand la série atteint ce jour du cycle.
+  paliers:
+    7:
+      - "[console] give {joueur} emerald 1"
+    14:
+      - "[console] give {joueur} emerald 2"
+    21:
+      - "[console] give {joueur} emerald 3"
+    30:
+      - "[console] give {joueur} nether_star 1"
+
+# Objectif du moment : le premier dont toutes les conditions sont vraies.
+# « boucle » (de, a) essaie {i} de « de » à « a » et garde le premier {i} qui marche.
+objectifs:
+  annonce:
+    si:
+      - "{annonce} == oui"
+    texte: "{annonce_texte}"
+    description:
+      - "&7Clique pour y aller."
+    clic: "{annonce_clic}"
+    icone: CLOCK
+  recompense:
+    si:
+      - "{recompense_prete} == oui"
+    texte: "Récompense du jour à prendre"
+    description:
+      - "&7Clique pour l'ouvrir."
+    clic: "guide"
+    icone: CHEST
+  presque:
+    si:
+      - "{tache_proche} == oui"
+    texte: "{tache_proche_texte}"
+    description:
+      - "&7Tu y es presque."
+    clic: "{tache_proche_clic}"
+    icone: SPYGLASS
+  suivante:
+    si:
+      - "{tache_suivante} == oui"
+    texte: "{tache_suivante_texte}"
+    description:
+      - "&7Une tâche du programme du jour."
+    clic: "{tache_suivante_clic}"
+    icone: WRITABLE_BOOK
+  bravo:
+    si:
+      - "{recompense_prete} == non"
+    texte: "Programme du jour fini, à demain !"
+    description:
+      - "&7Reviens demain pour garder ta série."
+    clic: ""
+    icone: CAKE
+
+retour:
+  # Absence minimale, en jours, pour accueillir le joueur à sa connexion.
+  jours: 3
+  # Délai après la connexion, en ticks.
+  delai-ticks: 60
+  # Condition pour ouvrir le dialogue ; sinon les lignes « retour » de messages.yml sont envoyées dans le chat.
+  dialogue-si: "%viaversion_player_protocol_id% >= 771"
+  dialogue:
+    - "[console] shdialogs open retour {joueur}"
+  # Nouveautés montrées au retour : seules celles parues après la dernière venue, les plus récentes d'abord.
+  nouveautes-max: 2
+  nouveautes:
+    - date: "2026-11-23"
+      texte: "Jake devient ton guide"
+
+# Minutes pendant lesquelles une annonce reste l'objectif après l'heure de début.
+annonce-apres-debut-minutes: 5
+
+menu:
+  cases:
+    jake: 4
+    objectif: 13
+    recompense: 24
+    aide: 29
+    ile: 31
+    reglages: 33
+    serie: 40
+  # Cases des tâches du jour, dans l'ordre (tâches fixes puis tâche tournante).
+  taches:
+    - 20
+    - 21
+    - 22
+    - 23
+  icones:
+    jake: PLAYER_HEAD
+    contour: BLACK_STAINED_GLASS_PANE
+    accent: CYAN_STAINED_GLASS_PANE
+    fait: LIME_DYE
+    recompense-fermee: CHEST
+    recompense-prete: ENDER_CHEST
+    recompense-prise: BARREL
+    aide: BOOK
+    ile: GRASS_BLOCK
+    reglages: NAME_TAG
+    serie: BLAZE_POWDER
+    retour: ARROW
+  ile-commande: "is"
+  reglages-commande: "jake reglages"
+
+# « Comment faire… » : un bouton par question, dix au plus. fermer = ferme le menu avant les commandes.
+aide:
+  ile:
+    icone: GRASS_BLOCK
+    nom: "&bRetourner sur mon île"
+    description:
+      - "&7Te téléporte sur ton île."
+    commandes:
+      - "is go"
+    fermer: true
+
+# Sons joués au joueur, vides = aucun.
+sons:
+  ouverture: ui.toast.in
+  clic: ui.button.click
+  tache: entity.experience_orb.pickup
+  programme: ui.toast.challenge_complete
+  recompense: entity.player.levelup
