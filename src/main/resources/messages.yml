@@ -32,6 +32,18 @@ chat:
   set-ok: "&7&l« &a&lSHGuide &8&l» &7{champ} de &a{joueur} &7mis à &a{valeur}&7."
   set-erreur: "&7&l« &c&lSHGuide &8&l» &7Valeur refusée pour {champ}, &c{valeur}&7."
   reset-ok: "&7&l« &a&lSHGuide &8&l» &7Guide de &a{joueur} &7remis à zéro."
+  accueil-ok: "&7&l« &a&lSHGuide &8&l» &7Accueil de &a{joueur}&7, {action} fait."
+  # Accueil des nouveaux joueurs (section accueil de config.yml)
+  recompense-accueil: "&7&l« &a&lJake &8&l» &7Cadeau récupéré{gain}&7. Bon jeu !"
+  accueil-rester: "&7&l« &a&lJake &8&l» &7Merci pour ces {minutes} minutes de jeu ! Votre cadeau, &a{gain}&7, vous attend dans &a/jake&7."
+  accueil-demain-annonce: "&7&l« &a&lJake &8&l» &7Et revenez demain, je vous garde &b{gain}&7."
+  accueil-demain-pret: "&7&l« &a&lJake &8&l» &7Content de vous revoir ! Votre cadeau, &b{gain}&7, vous attend dans &a/jake&7."
+  tutoriel-etape: "&7&l« &a&lJake &8&l» &7Étape &a{n}/{total} &7faite, &a{texte}&7.{gain}"
+  tutoriel-gain: " Vous gagnez &a{texte}&7."
+  tutoriel-suivante: "&7&l« &e&lJake &8&l» &7Étape suivante, &e{texte}&7."
+  tutoriel-fini: "&7&l« &a&lJake &8&l» &7Tutoriel terminé, bravo ! Votre programme du jour vous attend dans &a/jake&7."
+  fleche-on: "&7&l« &a&lJake &8&l» &7Flèche du tutoriel &aremise&7."
+  fleche-off: "&7&l« &e&lJake &8&l» &7Flèche du tutoriel &ecoupée&7, &e/guide fleche &7pour la remettre."
   info:
     - "&7&l« &e&lSHGuide &8&l» &e{joueur} &7jour {jour}, palier {palier}, tâches {faites}/{total}"
     - "&7Série {serie} (record {record}), joker {joker}, dernière venue {venue}, à prendre {attente}"
@@ -106,6 +118,7 @@ menu:
       - " &6• &7Tâches faites: &f{faites}&7/&f{total}"
       - "{gain}"
       - "{demain}"
+      - "{accueil-demain}"
     nom-prete: "&aRécompense du jour"
     lore-prete:
       - ""
@@ -113,8 +126,19 @@ menu:
       - "&7votre récompense est prête ! &8&l»"
       - ""
       - "{gain}"
+      - "{accueil-demain}"
       - ""
       - "&7&o(( &a&oCliquez pour la récupérer &7&o))"
+    nom-prete-accueil: "&aCadeau de bienvenue"
+    lore-prete-accueil:
+      - ""
+      - "&8&l« &7Jake vous offre un cadeau"
+      - "&7pour votre arrivée ! &8&l»"
+      - ""
+      - " &a• &7Cadeau: &f{gain}"
+      - "{accueil-demain}"
+      - ""
+      - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
     nom-prise: "&7Récompense récupérée"
     lore-prise:
       - ""
@@ -122,9 +146,12 @@ menu:
       - "&7nouveau programme. &8&l»"
       - ""
       - "{demain}"
+      - "{accueil-demain}"
     # Lignes {gain} et {demain} : la récompense en plus d'aujourd'hui et de demain (programme.recompenses-du-jour)
     gain: " &6• &7Récompense du jour: &f{gain}"
     demain: " &8• &7Demain: &f{gain}"
+    # Premier jour d'un nouveau joueur : le cadeau qui l'attend demain (accueil.demain)
+    accueil-demain: " &b• &7Cadeau de demain: &f{gain}"
 
   serie:
     nom: "&6Série de {serie} jour(s)"
@@ -189,3 +216,16 @@ retour:
     - "&7Votre objectif du moment, &e{objectif}&7."
   nouveaute: "&8• &7{texte}"
   bouton: "&e&l[Voir Jake]"
+
+# Accueil des nouveaux joueurs : barres du haut de l'écran et texte de la flèche
+accueil:
+  barre-rester: "&e&lCadeau de bienvenue &8· &f{gain} &7dans &e{temps}"
+  barre-rester-pause: "&e&lCadeau de bienvenue &8· &7en pause pendant l'AFK"
+  barre-demain: "&b&lRevenez demain &8· &7Jake vous garde &b{gain}"
+  barre-tutoriel: "&a&lÉtape {n}/{total} &8· &f{texte}"
+  fleche: "&f{nom} &7{distance} m"
+
+# Barre de l'event annoncé (/shguide annonce, rappels du bot) : {texte} nom de l'event, {temps} compte à rebours
+annonce:
+  barre: "&d&l{texte} &8· &7commence dans &d{temps} &8· &7/events"
+  barre-commence: "&d&l{texte} &8· &acommence maintenant &8· &7/events"

@@ -42,7 +42,8 @@ final class Retour {
                 .sorted(Comparator.comparing(Settings.News::date).reversed()).limit(max).toList();
     }
 
-    void onSessionReady(Player p, Sessions.Session s) {
+    /** @return vrai si le joueur revient après une absence (dialogue de retour prévu). */
+    boolean onSessionReady(Player p, Sessions.Session s) {
         Settings cfg = plugin.settings();
         LocalDate today = plugin.today();
         String previous = s.state.lastSeen;
@@ -53,7 +54,7 @@ final class Retour {
             s.dirty = true;
         }
         if (!back) {
-            return;
+            return false;
         }
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!p.isOnline()) {
@@ -75,5 +76,6 @@ final class Retour {
             }
             m.sendClickable(p, "retour.bouton", "guide");
         }, cfg.returnDelayTicks());
+        return true;
     }
 }

@@ -21,7 +21,8 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 int returnDays, long returnDelayTicks, String dialogCondition, List<String> dialogCommands,
                 List<News> news, int newsMax, int annonceBeforeMinutes, int annonceGraceMinutes,
                 Map<String, Integer> slots, List<Integer> taskSlots, String islandCommand, String settingsCommand,
-                Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db) {
+                Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db,
+                AccueilConfig accueil, AnnonceBarre.Config annonceBar) {
 
     /**
      * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
@@ -225,7 +226,9 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 slots, List.copyOf(taskSlots), menu.getString("ile-commande", "is"),
                 menu.getString("reglages-commande", "jake reglages"), icons, List.copyOf(help), sounds,
                 new DbConfig(db.getString("hote", "127.0.0.1"), db.getInt("port", 3306), db.getString("base", "minecraft"),
-                        db.getString("utilisateur", ""), db.getString("mot-de-passe", "")));
+                        db.getString("utilisateur", ""), db.getString("mot-de-passe", "")),
+                AccueilConfig.read(c.getConfigurationSection("accueil")),
+                AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")));
     }
 
     private static List<DailyVariant> variants(ConfigurationSection prog) {

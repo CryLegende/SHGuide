@@ -5,22 +5,29 @@
 # Jake, le guide du joueur : objectif du moment, programme du jour avec sa série, retour guidé après une
 # absence et réponses aux questions fréquentes (« Comment faire… »). Le plugin ne connaît aucun autre plugin :
 # tout passe par des placeholders (PlaceholderAPI) et des commandes écrits ici.
+# Les nouveaux joueurs ont en plus un accueil (section accueil, exemple commenté en bas du fichier) : cadeaux,
+# tutoriel en étapes, arrivée sur l'île et flèche vers l'étape.
 #
 # Commandes :
 #   /guide                                        Ouvre le menu de Jake (shguide.use).
 #   /guide aller                                  Lance le clic de l'objectif du moment.
+#   /guide fleche                                 Coupe ou remet la flèche du tutoriel.
 #   /shguide reload                               Recharge config.yml et messages.yml.
 #   /shguide info <joueur>                        Programme, série et dates d'un joueur.
 #   /shguide annonce <minutes|HH:MM> <texte> | <clic>
 #                                                 Event qui commence dans <minutes> ou à HH:MM (heure du fuseau) : il
 #                                                 devient l'objectif du moment de tout le serveur.
-#   /shguide set <joueur> <serie|jour|derniere-venue|dernier-complet> <valeur>   Corrige un joueur (dates 2026-11-23).
+#   /shguide set <joueur> <serie|jour|derniere-venue|dernier-complet|premier-jour> <valeur>
+#                                                 Corrige un joueur (dates 2026-11-23, « aucun » pour effacer une date).
+#   /shguide accueil <joueur> <nouveau|fin|arrivee>
+#                                                 Refait de lui un nouveau joueur, finit son tutoriel ou rejoue son
+#                                                 arrivée là où il est (essais).
 #   /shguide reset <joueur>                       Remet le guide du joueur à zéro.
 #
 # Permissions :
 #   shguide.use                     Ouvrir le menu (/guide, clic sur Jake).
 #   shguide.admin                   Toutes les sous-commandes de /shguide.
-#   shguide.admin.<sous-commande>   reload, info, annonce, set, reset.
+#   shguide.admin.<sous-commande>   reload, info, annonce, set, reset, accueil.
 #
 # Placeholders :
 #   %shguide_objectif%           Texte court de l'objectif du moment (scoreboard).
@@ -34,13 +41,22 @@
 #   %shguide_alerte%             oui si Jake a quelque chose pour le joueur (récompense, première visite du jour).
 #   %shguide_nouveautes_nombre%  Nouveautés depuis la dernière venue (0 à nouveautes-max).
 #   %shguide_nouveaute_<n>%      Texte de la n-ième nouveauté (vide s'il n'y en a pas).
+#   %shguide_menu_vu%            oui si le joueur a ouvert le menu de Jake aujourd'hui.
+#   %shguide_nouveau%            oui pour un joueur arrivé depuis l'accueil (premier jour connu), non pour un ancien.
+#   %shguide_accueil_temps%      Temps de jeu restant avant le cadeau « rester » (m:ss), vide une fois le cadeau donné.
+#   %shguide_tutoriel%           oui tant que le tutoriel du joueur n'est pas fini.
+#   %shguide_tutoriel_fini%      oui quand le tutoriel est terminé.
+#   %shguide_tutoriel_etape%     Numéro de l'étape en cours.
+#   %shguide_tutoriel_total%     Nombre d'étapes du tutoriel.
+#   %shguide_tutoriel_texte%     Texte de l'étape en cours (vide si le tutoriel est fini).
 #
 # Conditions : « A opérateur B », les deux côtés passent par les placeholders du joueur.
 #   Opérateurs : ==  !=  >=  <=  >  <  et ~ (expression régulière cherchée dans A, B n'est pas lu par PlaceholderAPI).
 #   Deux nombres se comparent comme des nombres (« 12 273 » et « 5.0 » sont lus), sinon comme du texte sans la casse.
 #
 # Jetons des objectifs : {i} (boucle), {joueur}, {annonce} {annonce_texte} {annonce_clic}, {recompense_prete},
-#   {tache_proche} {tache_proche_texte} {tache_proche_clic}, {tache_suivante} {tache_suivante_texte} {tache_suivante_clic}.
+#   {tache_proche} {tache_proche_texte} {tache_proche_clic}, {tache_suivante} {tache_suivante_texte} {tache_suivante_clic},
+#   {tuto} {tuto_texte} {tuto_clic} {tuto_description} {tuto_n} {tuto_total} (étape en cours du tutoriel).
 #   Les jetons oui/non valent « oui » ou « non ».
 # Jetons des tâches : {objectif} (quantité du palier).
 # Commandes : lancées par le joueur, sauf celles qui commencent par [console] ({joueur} = son pseudo).
@@ -216,6 +232,15 @@ annonce-avant-minutes: 15
 # Minutes pendant lesquelles elle le reste après l'heure de début.
 annonce-apres-debut-minutes: 5
 
+# Barre en haut de l'écran de tout le serveur pour l'event annoncé, avec son compte à rebours, pendant les
+# « minutes-avant » qui précèdent son début, puis « commence maintenant » pendant annonce-apres-debut-minutes.
+# Les rappels du bot des évènements l'annoncent avec la commande de rappel « shguide annonce {heure} {nom} | events ».
+# Textes : annonce.barre et annonce.barre-commence dans messages.yml.
+annonce-barre:
+  actif: true
+  minutes-avant: 30
+  couleur: PURPLE
+
 menu:
   cases:
     jake: 4
@@ -268,3 +293,166 @@ sons:
   tache: entity.experience_orb.pickup
   programme: ui.toast.challenge_complete
   recompense: entity.player.levelup
+
+# ------------------------------------------------------------------------ #
+# Exemple de section accueil, désactivée par défaut : retirez « # » (et l'espace qui suit) au début de
+# chaque ligne pour l'activer. Sans cette section, aucun nouveau joueur n'a d'accueil.
+# ------------------------------------------------------------------------ #
+
+# Accueil des nouveaux joueurs (SHGuide 1.3). Seuls les joueurs dont la toute première connexion a lieu avec le guide
+# en profitent ; les anciens joueurs ne voient ni les cadeaux, ni le tutoriel, ni la flèche.
+# accueil:
+#   actif: true
+#   # Cadeau pour être resté : donné quand le joueur a joué « minutes » minutes (comptées seulement quand « compte-si »
+#   # est vrai, pas pendant l'AFK). Il attend ensuite dans les récompenses de Jake (/jake). Barre jaune en haut de l'écran.
+#   rester:
+#     minutes: 10
+#     compte-si: "%essentials_afk% == no"
+#     texte: "1 Clé Ordinaire"
+#     commandes:
+#       - "[console] shcrates givekey {joueur} ordinaire 1 physical"
+#     couleur-barre: YELLOW
+#   # Cadeau du lendemain : annoncé le premier jour (dialogue d'accueil, cadeau « rester », menu de Jake), mis dans les
+#   # récompenses de Jake à la première connexion d'un autre jour, jusqu'à « jours » jours après l'arrivée.
+#   demain:
+#     jours: 3
+#     texte: "1 Clé Rare"
+#     commandes:
+#       - "[console] shcrates givekey {joueur} rare 1 physical"
+#     delai-ticks: 80
+#     dialogue-si: "%viaversion_player_protocol_id% >= 771"
+#     dialogue:
+#       - "[console] shdialogs open cadeau-demain {joueur}"
+#     # Barre « Revenez demain » montrée ce nombre de secondes quand le cadeau « rester » arrive, puis à chaque connexion
+#     # du premier jour.
+#     rappel-secondes: 20
+#     couleur-barre: BLUE
+#   # Tutoriel : une étape = un système du serveur. Barre verte « Étape n/8 » tant qu'il n'est pas fini, objectif du
+#   # moment dans le menu de Jake et le scoreboard, flèche vers « cible » quand l'étape en a une.
+#   #   fait-si      conditions toutes vraies = étape faite (passée tout de suite si le joueur l'a déjà faite)
+#   #   clic         commande du joueur au clic sur l'objectif (menu de Jake, /guide aller)
+#   #   cible        « monde x y z » (placeholders acceptés) : la flèche y mène ; cible-nom s'affiche avec la distance
+#   #   debut        commandes quand l'étape devient la suivante ; recompense quand elle est faite
+#   tutoriel:
+#     couleur-barre: GREEN
+#     verification-secondes: 2
+#     etapes:
+#       arbre:
+#         texte: "Coupez l'arbre de votre île"
+#         icone: OAK_LOG
+#         description:
+#           - "   &7L'arbre est juste devant vous, cassez ses 6 bûches."
+#         fait-si:
+#           - "%questcreator_quest_p01_03_completions% >= 1"
+#         clic: "is go"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/arbre 1"
+#       generateur:
+#         texte: "Minez 64 pierres au générateur"
+#         icone: COBBLESTONE
+#         description:
+#           - "   &7La pierre se reforme toute seule entre l'eau et la lave."
+#         fait-si:
+#           - "%questcreator_quest_p01_04_completions% >= 1"
+#         clic: "is go"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/generateur 1"
+#       vendre:
+#         texte: "Vendez votre pierre (/shop)"
+#         icone: EMERALD
+#         description:
+#           - "   &7Dans /shop, un clic droit sur un objet le vend."
+#         fait-si:
+#           - "%shsell_ventes% >= 1"
+#         clic: "shop"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/vendre 1"
+#       ile:
+#         texte: "Posez 32 blocs sur votre île"
+#         icone: BRICKS
+#         description:
+#           - "   &7Chaque bloc posé fait monter le niveau de l'île (/is level)."
+#         fait-si:
+#           - "%questcreator_quest_p01_09_completions% >= 1"
+#         clic: "is go"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/ile 1"
+#       jake:
+#         texte: "Parlez à Jake, votre guide"
+#         icone: PLAYER_HEAD
+#         description:
+#           - "   &7Jake donne un programme chaque jour et garde vos cadeaux."
+#         fait-si:
+#           - "%shguide_menu_vu% == oui"
+#         clic: "guide"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/jake 1"
+#       box:
+#         texte: "Ouvrez une box au spawn"
+#         icone: TRIAL_KEY
+#         description:
+#           - "   &7Votre cadeau de bienvenue est une clé Ordinaire."
+#         fait-si:
+#           - "%shcrates_ouvertures_ordinaire% >= 1"
+#         clic: "warp box"
+#         cible: "spawn -2 64 -12"
+#         cible-nom: "Box"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/box 1"
+#       metier:
+#         texte: "Montez un métier au niveau 2"
+#         icone: IRON_PICKAXE
+#         description:
+#           - "   &7Miner, couper, cultiver, pêcher… tout fait monter vos métiers."
+#         fait-si:
+#           - '%shjobs_player_level_bucheron% %shjobs_player_level_mineur% %shjobs_player_level_agriculteur% %shjobs_player_level_chasseur% %shjobs_player_level_artisan% %shjobs_player_level_pecheur% ~ (^|\s)([2-9]|\d{2,})(\s|$)'
+#         clic: "jobs"
+#         cible: "spawn -17.9 63 13.5"
+#         cible-nom: "Métiers"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/metier 1"
+#       codex:
+#         texte: "Découvrez 3 lieux du spawn"
+#         icone: FILLED_MAP
+#         description:
+#           - "   &7Explorez à pied, chaque lieu trouvé s'ajoute au /codex."
+#         fait-si:
+#           - "%shcodex_discovered_count% >= 3"
+#         clic: "spawn"
+#         recompense:
+#           - "[console] shprogress progress {joueur} premiers-pas/codex 1"
+#     fin:
+#       - "[console] ntdluckyblock give {joueur} YELLOW 1"
+#       - '[console] title {joueur} times 10 60 20'
+#       - '[console] title {joueur} subtitle {"text":"Votre aventure commence","color":"gray"}'
+#       - '[console] title {joueur} title {"text":"Tutoriel terminé !","color":"#5CFFB0","bold":true}'
+#   # Arrivée sur l'île : à sa première entrée dans le monde des îles le jour de son arrivée, le joueur repart « hauteur »
+#   # blocs plus haut, regard vers le bas, et redescend doucement vers son île sous un grand titre. Commandes :
+#   # « ticks commande », lancées après ces ticks.
+#   arrivee:
+#     monde: SuperiorWorld
+#     hauteur: 22
+#     chute-secondes: 14
+#     # blocs par seconde (0 = chute lente seule, environ 8 blocs/s)
+#     vitesse-descente: 3
+#     regard-bas: 60
+#     titre: "&#5CFFB0&lVotre île"
+#     sous-titre: "&7Bienvenue sur SkyHand, &f{joueur}"
+#     titre-apparition-ticks: 15
+#     titre-duree-ticks: 100
+#     titre-disparition-ticks: 25
+#     son: "minecraft:ui.toast.challenge_complete"
+#     commandes: []
+#   # Flèche vers l'étape : item à plat devant le joueur, sous ses yeux, et la distance au-dessus. Montrée à lui seul.
+#   fleche:
+#     actif: true
+#     objet: SPECTRAL_ARROW
+#     taille: 0.7
+#     devant: 1.7
+#     sous-les-yeux: 0.9
+#     distance-min: 8
+#     arrive: 4
+#     lueur: ""
+#     rotation-en-plus: -90
+#     taille-texte: 0.6
+#     texte-au-dessus: 0.35

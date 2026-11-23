@@ -17,11 +17,11 @@ libraries:
 
 commands:
   guide:
-    description: Ouvre le menu de Jake, ou va à l'objectif du moment (aller).
-    usage: /<command> [aller]
+    description: Ouvre le menu de Jake, va à l'objectif du moment (aller) ou coupe la flèche du tutoriel (fleche).
+    usage: /<command> [aller|fleche]
   shguide:
-    description: Administration du guide (reload, info, annonce, set, reset).
-    usage: /<command> <reload|info|annonce|set|reset> ...
+    description: Administration du guide (reload, info, annonce, set, reset, accueil).
+    usage: /<command> <reload|info|annonce|set|reset|accueil> ...
 
 permissions:
   shguide.use:
@@ -36,6 +36,7 @@ permissions:
       shguide.admin.annonce: true
       shguide.admin.set: true
       shguide.admin.reset: true
+      shguide.admin.accueil: true
   shguide.admin.reload:
     description: Recharger config.yml et messages.yml.
     default: op
@@ -50,4 +51,7 @@ permissions:
     default: op
   shguide.admin.reset:
     description: Remettre à zéro le guide d'un joueur.
+    default: op
+  shguide.admin.accueil:
+    description: Refaire d'un joueur un nouveau joueur, finir son tutoriel ou rejouer son arrivée (essais).
     default: op

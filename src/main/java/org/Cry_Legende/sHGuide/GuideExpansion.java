@@ -67,6 +67,28 @@ final class GuideExpansion extends PlaceholderExpansion {
                 return !s.state.pending.isEmpty() || !today.toString().equals(s.state.alertSeen) ? "oui" : "non";
             case "nouveautes_nombre":
                 return Integer.toString(s.news.size());
+            case "accueil_temps": {
+                AccueilConfig ac = plugin.settings().accueil();
+                return Accueil.stayActive(s.state, ac, today)
+                        ? Accueil.clock(ac.stay().minutes() * 60 - s.state.staySeconds) : "";
+            }
+            case "tutoriel":
+                return Accueil.tutorialActive(s.state, plugin.settings().accueil()) ? "oui" : "non";
+            case "tutoriel_fini":
+                return s.state.tutoFinished ? "oui" : "non";
+            case "tutoriel_etape":
+                return Integer.toString(Accueil.stepNumber(s.state, plugin.settings().accueil()));
+            case "tutoriel_total":
+                return Integer.toString(plugin.settings().accueil().tutorial().steps().size());
+            case "tutoriel_texte": {
+                AccueilConfig.Step st = Accueil.tutorialActive(s.state, plugin.settings().accueil())
+                        ? Accueil.currentStep(s.state, plugin.settings().accueil()) : null;
+                return st == null ? "" : st.text();
+            }
+            case "menu_vu":
+                return today.toString().equals(s.state.alertSeen) ? "oui" : "non";
+            case "nouveau":
+                return s.state.firstDay != null ? "oui" : "non";
             default:
                 break;
         }

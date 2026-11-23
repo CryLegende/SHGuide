@@ -116,16 +116,36 @@ final class GuideMenu {
 
         boolean ready = !s.state.pending.isEmpty();
         String key = ready ? "prete" : s.state.completed ? "prise" : "fermee";
+        // Seulement un cadeau d'accueil à prendre : le coffre ne parle pas des tâches du jour.
+        String textKey = ready && s.state.pending.stream().allMatch(id -> id.startsWith("accueil:")) ? "prete-accueil" : key;
         String[] rewardRepl = {"faites", Long.toString(total - left), "total", Integer.toString(total)};
-        Settings.DailyVariant todayGain = ready ? s.state.pending.stream().filter(id -> id.startsWith("jour"))
-                .findFirst().map(id -> pendingVariant(plugin, id)).orElse(null) : cfg.variantFor(today);
+        String todayGain;
+        if (ready) {
+            List<String> texts = new ArrayList<>();
+            for (String id : s.state.pending) {
+                String txt = pendingText(plugin, id);
+                if (!txt.isEmpty() && !texts.contains(txt)) {
+                    texts.add(txt);
+                }
+            }
+            todayGain = String.join("&7, ", texts);
+        } else {
+            Settings.DailyVariant v = cfg.variantFor(today);
+            todayGain = v == null ? "" : v.text();
+        }
         Settings.DailyVariant tomorrowGain = cfg.variantFor(today.plusDays(1));
         Map<String, List<String>> rewardBlocks = new HashMap<>();
-        rewardBlocks.put("gain", todayGain == null ? List.of() : m.block("menu.recompense.gain", "gain", todayGain.text()));
+        rewardBlocks.put("gain", todayGain.isEmpty() ? List.of() : m.block("menu.recompense.gain", "gain", todayGain));
         rewardBlocks.put("demain", tomorrowGain == null ? List.of()
                 : m.block("menu.recompense.demain", "gain", tomorrowGain.text()));
-        ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + key, rewardRepl),
-                m.lore("menu.recompense.lore-" + key, rewardBlocks, rewardRepl));
+        AccueilConfig ac = cfg.accueil();
+        boolean welcomeTomorrow = ac.enabled() && Accueil.daysSinceFirst(s.state, today) == 0
+                && !s.state.welcome.contains("demain") && !ac.tomorrow().commands().isEmpty();
+        rewardBlocks.put("accueil-demain", welcomeTomorrow
+                ? m.block("menu.recompense.accueil-demain", "gain", ac.tomorrow().text()) : List.of());
+        ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + textKey, rewardRepl),
+                m.lore("menu.recompense.lore-" + textKey, rewardBlocks, "faites", Long.toString(total - left),
+                        "total", Integer.toString(total), "gain", todayGain));
         if (ready) {
             glint(reward);
             holder.actions.put(slot(cfg, "recompense"), () -> {
@@ -207,8 +227,20 @@ final class GuideMenu {
         s.state.pending.clear();
         plugin.sessions().markDirty(p);
         List<String> gains = new ArrayList<>();
+        boolean daily = false;
+        AccueilConfig ac = plugin.settings().accueil();
         for (String id : pending) {
+            if (id.equals("accueil:rester") || id.equals("accueil:demain")) {
+                boolean stay = id.equals("accueil:rester");
+                plugin.runCommands(p, stay ? ac.stay().commands() : ac.tomorrow().commands());
+                String t = stay ? ac.stay().text() : ac.tomorrow().text();
+                if (!t.isEmpty()) {
+                    gains.add(t);
+                }
+                continue;
+            }
             if (id.equals("jour") || id.startsWith("jour:")) {
+                daily = true;
                 plugin.runCommands(p, plugin.settings().dailyReward());
                 Settings.DailyVariant v = pendingVariant(plugin, id);
                 if (v != null) {
@@ -222,9 +254,29 @@ final class GuideMenu {
             }
         }
         String gain = gains.isEmpty() ? "" : plugin.messages().text("chat.recompense-gain", "texte", String.join(", ", gains));
-        plugin.messages().send(p, "recompense", "serie", Integer.toString(Streak.display(s.state, plugin.today())),
-                "gain", gain);
+        if (daily) {
+            plugin.messages().send(p, "recompense", "serie", Integer.toString(Streak.display(s.state, plugin.today())),
+                    "gain", gain);
+        } else {
+            plugin.messages().send(p, "recompense-accueil", "gain", gain);
+        }
         plugin.sound(p, "recompense");
+    }
+
+    /** Texte d'une récompense en attente, pour le menu. */
+    static String pendingText(SHGuide plugin, String id) {
+        AccueilConfig ac = plugin.settings().accueil();
+        if (id.equals("accueil:rester")) {
+            return ac.stay().text();
+        }
+        if (id.equals("accueil:demain")) {
+            return ac.tomorrow().text();
+        }
+        if (id.equals("jour") || id.startsWith("jour:")) {
+            Settings.DailyVariant v = pendingVariant(plugin, id);
+            return v == null ? "" : v.text();
+        }
+        return "";
     }
 
     /** « jour » (avant la 1.2) = la récompense d'aujourd'hui ; « jour:<id> » = celle du jour où le programme a été fini. */

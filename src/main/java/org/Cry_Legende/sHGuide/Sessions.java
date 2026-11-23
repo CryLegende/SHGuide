@@ -70,6 +70,8 @@ final class Sessions implements Listener {
     void load(Player p) {
         UUID id = p.getUniqueId();
         String name = p.getName();
+        // Faux pendant toute la première session, même après un rechargement du plugin.
+        boolean firstVisit = !p.hasPlayedBefore();
         io.execute(() -> {
             PlayerState stored;
             try {
@@ -84,6 +86,9 @@ final class Sessions implements Listener {
             if (stored == null && seen != null) {
                 Retour.seedLastSeen(state, seen, plugin.settings().zone());
             }
+            if (stored == null && firstVisit && plugin.settings().accueil().enabled()) {
+                state.firstDay = plugin.today().toString();
+            }
             plugin.sync(() -> {
                 if (!p.isOnline()) {
                     return;
@@ -91,7 +96,8 @@ final class Sessions implements Listener {
                 Session session = new Session();
                 session.state = state;
                 sessions.put(id, session);
-                plugin.retour().onSessionReady(p, session);
+                boolean back = plugin.retour().onSessionReady(p, session);
+                plugin.accueil().onSessionReady(p, session, back);
                 refresh(p);
             });
         });
@@ -100,6 +106,9 @@ final class Sessions implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         serverLastSeen.remove(e.getPlayer().getUniqueId());
+        plugin.accueil().forget(e.getPlayer());
+        plugin.annonceBarre().forget(e.getPlayer());
+        plugin.fleche().clear(e.getPlayer());
         Session s = sessions.remove(e.getPlayer().getUniqueId());
         if (s != null) {
             s.state.lastSeen = plugin.today().toString();
@@ -160,6 +169,14 @@ final class Sessions implements Listener {
         Map<String, String> tokens = new HashMap<>(Objectives.tokens(t.tasks(), !s.state.pending.isEmpty(), shown,
                 cfg.nearRatio(), m.text("objectif.presque")));
         tokens.put("joueur", p.getName());
+        AccueilConfig ac = cfg.accueil();
+        AccueilConfig.Step step = Accueil.tutorialActive(s.state, ac) ? Accueil.currentStep(s.state, ac) : null;
+        tokens.put("tuto", step == null ? "non" : "oui");
+        tokens.put("tuto_texte", step == null ? "" : step.text());
+        tokens.put("tuto_clic", step == null ? "" : step.click());
+        tokens.put("tuto_description", step == null || step.lore().isEmpty() ? "" : step.lore().get(0));
+        tokens.put("tuto_n", step == null ? "" : Integer.toString(Accueil.stepNumber(s.state, ac)));
+        tokens.put("tuto_total", Integer.toString(ac.tutorial().steps().size()));
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
         return t;
     }

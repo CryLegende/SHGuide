@@ -32,12 +32,28 @@ public final class PlayerState {
     public int best;
     /** Semaines dont le joker est utilisé (2026-W48). */
     public Set<String> jokerWeeks = new HashSet<>();
-    /** Récompenses à récupérer dans le menu : « jour » ou « palier:7 ». */
+    /** Récompenses à récupérer dans le menu : « jour:<id> », « palier:7 » ou « accueil:rester ». */
     public List<String> pending = new ArrayList<>();
     /** Dernier jour de connexion. */
     public String lastSeen;
     /** Dernier jour où le menu a été ouvert. */
     public String alertSeen;
+    /** Premier jour d'un nouveau joueur (accueil) ; null pour un joueur venu avant l'accueil. */
+    public String firstDay;
+    /** Secondes de jeu comptées pour le cadeau « rester » (premier jour seulement). */
+    public int staySeconds;
+    /** Cadeaux d'accueil déjà mis dans les récompenses : « rester », « demain ». */
+    public Set<String> welcome = new HashSet<>();
+    /** Étapes du tutoriel faites. */
+    public Set<String> tutoDone = new HashSet<>();
+    /** Étape dont les commandes « debut » ont été lancées. */
+    public String tutoStarted;
+    /** Tutoriel fini (ou jamais commencé pour un ancien joueur). */
+    public boolean tutoFinished;
+    /** Séquence d'arrivée sur l'île déjà jouée. */
+    public boolean arrived;
+    /** Flèche du tutoriel coupée par le joueur (/guide fleche). */
+    public boolean arrowOff;
 
     static PlayerState fresh(String name) {
         PlayerState s = new PlayerState();
@@ -61,6 +77,12 @@ public final class PlayerState {
         }
         if (pending == null) {
             pending = new ArrayList<>();
+        }
+        if (welcome == null) {
+            welcome = new HashSet<>();
+        }
+        if (tutoDone == null) {
+            tutoDone = new HashSet<>();
         }
         return this;
     }

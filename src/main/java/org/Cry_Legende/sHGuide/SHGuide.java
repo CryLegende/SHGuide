@@ -25,6 +25,10 @@ public final class SHGuide extends JavaPlugin {
     private GuideStore store;
     private Sessions sessions;
     private Retour retour;
+    private Accueil accueil;
+    private Fleche fleche;
+    private Arrivee arrivee;
+    private AnnonceBarre annonceBarre;
     private final Annonces annonces = new Annonces();
     private GuideExpansion expansion;
 
@@ -61,8 +65,13 @@ public final class SHGuide extends JavaPlugin {
         }
         sessions = new Sessions(this);
         retour = new Retour(this);
+        accueil = new Accueil(this);
+        fleche = new Fleche(this);
+        arrivee = new Arrivee(this);
+        annonceBarre = new AnnonceBarre(this);
         getServer().getPluginManager().registerEvents(sessions, this);
         getServer().getPluginManager().registerEvents(new GuideMenu.Listener(this), this);
+        getServer().getPluginManager().registerEvents(arrivee, this);
         GuideCommands commands = new GuideCommands(this);
         for (String name : List.of("guide", "shguide")) {
             PluginCommand command = getCommand(name);
@@ -72,6 +81,9 @@ public final class SHGuide extends JavaPlugin {
         expansion = new GuideExpansion(this);
         expansion.register();
         Bukkit.getScheduler().runTaskTimer(this, sessions::tick, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(this, accueil::tick, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(this, annonceBarre::tick, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(this, fleche::tick, 1L, 1L);
         for (Player p : Bukkit.getOnlinePlayers()) {
             sessions.load(p);
         }
@@ -81,6 +93,15 @@ public final class SHGuide extends JavaPlugin {
     public void onDisable() {
         if (expansion != null) {
             expansion.unregister();
+        }
+        if (fleche != null) {
+            fleche.clearAll();
+        }
+        if (accueil != null) {
+            accueil.hideAll();
+        }
+        if (annonceBarre != null) {
+            annonceBarre.hideAll();
         }
         if (sessions != null) {
             sessions.saveAll();
@@ -151,6 +172,22 @@ public final class SHGuide extends JavaPlugin {
 
     Retour retour() {
         return retour;
+    }
+
+    Accueil accueil() {
+        return accueil;
+    }
+
+    Fleche fleche() {
+        return fleche;
+    }
+
+    AnnonceBarre annonceBarre() {
+        return annonceBarre;
+    }
+
+    Arrivee arrivee() {
+        return arrivee;
     }
 
     Annonces annonces() {

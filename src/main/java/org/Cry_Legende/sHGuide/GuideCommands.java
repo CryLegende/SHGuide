@@ -19,8 +19,9 @@ import java.util.function.BiConsumer;
 /** /guide pour les joueurs, /shguide pour l'administration. */
 final class GuideCommands implements TabExecutor {
 
-    private static final List<String> SUBS = List.of("reload", "info", "annonce", "set", "reset");
-    private static final List<String> FIELDS = List.of("serie", "jour", "derniere-venue", "dernier-complet");
+    private static final List<String> SUBS = List.of("reload", "info", "annonce", "set", "reset", "accueil");
+    private static final List<String> ACCUEIL = List.of("nouveau", "fin", "arrivee");
+    private static final List<String> FIELDS = List.of("serie", "jour", "derniere-venue", "dernier-complet", "premier-jour");
     private static final String ANNONCE_USAGE = "/shguide annonce <minutes|HH:MM> <texte> | <commande>";
 
     private final SHGuide plugin;
@@ -39,6 +40,8 @@ final class GuideCommands implements TabExecutor {
                 m.send(p, "permission");
             } else if (args.length > 0 && args[0].equalsIgnoreCase("aller")) {
                 goToObjective(p);
+            } else if (args.length > 0 && args[0].equalsIgnoreCase("fleche")) {
+                toggleArrow(p);
             } else {
                 GuideMenu.open(plugin, p);
             }
@@ -54,6 +57,7 @@ final class GuideCommands implements TabExecutor {
             case "annonce" -> annonce(sender, args);
             case "info" -> withSession(sender, args, (p, s) -> info(sender, p, s));
             case "set" -> set(sender, args);
+            case "accueil" -> withSession(sender, args, (p, s) -> accueil(sender, p, s, args));
             default -> withSession(sender, args, (p, s) -> {
                 String seen = s.state.lastSeen;
                 s.state = PlayerState.fresh(p.getName());
@@ -64,6 +68,55 @@ final class GuideCommands implements TabExecutor {
             });
         }
         return true;
+    }
+
+    /** /guide fleche : coupe ou remet la flèche du tutoriel. */
+    private void toggleArrow(Player p) {
+        Sessions.Session s = plugin.sessions().get(p.getUniqueId());
+        if (s == null) {
+            plugin.messages().send(p, "chargement");
+            return;
+        }
+        s.state.arrowOff = !s.state.arrowOff;
+        plugin.sessions().markDirty(p);
+        if (s.state.arrowOff) {
+            plugin.fleche().clear(p);
+        }
+        plugin.messages().send(p, s.state.arrowOff ? "fleche-off" : "fleche-on");
+    }
+
+    /**
+     * /shguide accueil <joueur> <nouveau|fin|arrivee> : refait de lui un nouveau joueur (cadeaux, tutoriel, arrivée),
+     * finit son tutoriel, ou rejoue l'arrivée là où il est. Sert aux essais.
+     */
+    private void accueil(CommandSender sender, Player p, Sessions.Session s, String[] args) {
+        String what = args.length < 3 ? "" : args[2].toLowerCase(Locale.ROOT);
+        switch (what) {
+            case "nouveau" -> {
+                s.state.firstDay = plugin.today().toString();
+                s.state.staySeconds = 0;
+                s.state.welcome.clear();
+                s.state.tutoDone.clear();
+                s.state.tutoStarted = null;
+                s.state.tutoFinished = false;
+                s.state.arrived = false;
+                s.state.pending.removeIf(id -> id.startsWith("accueil:"));
+            }
+            case "fin" -> s.state.tutoFinished = true;
+            case "arrivee" -> {
+                AccueilConfig.Arrival a = plugin.settings().accueil().arrival();
+                if (a != null) {
+                    plugin.arrivee().play(p, a);
+                }
+            }
+            default -> {
+                plugin.messages().send(sender, "utilisation", "commandes", "/shguide accueil <joueur> <nouveau|fin|arrivee>");
+                return;
+            }
+        }
+        plugin.sessions().markDirty(p);
+        plugin.sessions().refresh(p);
+        plugin.messages().send(sender, "accueil-ok", "joueur", p.getName(), "action", what);
     }
 
     /** /guide aller : lance le clic de l'objectif du moment (bouton « Y aller » du dialogue de retour). */
@@ -134,6 +187,7 @@ final class GuideCommands implements TabExecutor {
                     }
                     case "jour" -> s.state.day = LocalDate.parse(value).toString();
                     case "derniere-venue" -> s.state.lastSeen = LocalDate.parse(value).toString();
+                    case "premier-jour" -> s.state.firstDay = value.equalsIgnoreCase("aucun") ? null : LocalDate.parse(value).toString();
                     default -> s.state.lastComplete = value.equalsIgnoreCase("aucun") ? null : LocalDate.parse(value).toString();
                 }
             } catch (NumberFormatException | DateTimeParseException e) {
@@ -164,8 +218,12 @@ final class GuideCommands implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> out = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("guide")) {
-            if (args.length == 1 && "aller".startsWith(args[0].toLowerCase(Locale.ROOT))) {
-                out.add("aller");
+            if (args.length == 1) {
+                for (String s : List.of("aller", "fleche")) {
+                    if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) {
+                        out.add(s);
+                    }
+                }
             }
             return out;
         }
@@ -176,11 +234,17 @@ final class GuideCommands implements TabExecutor {
                     out.add(s);
                 }
             }
-        } else if (args.length == 2 && List.of("info", "set", "reset").contains(sub) && sender.hasPermission("shguide.admin." + sub)) {
+        } else if (args.length == 2 && List.of("info", "set", "reset", "accueil").contains(sub) && sender.hasPermission("shguide.admin." + sub)) {
             String start = args[1].toLowerCase(Locale.ROOT);
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.getName().toLowerCase(Locale.ROOT).startsWith(start)) {
                     out.add(p.getName());
+                }
+            }
+        } else if (args.length == 3 && sub.equals("accueil") && sender.hasPermission("shguide.admin.accueil")) {
+            for (String f : ACCUEIL) {
+                if (f.startsWith(args[2].toLowerCase(Locale.ROOT))) {
+                    out.add(f);
                 }
             }
         } else if (args.length == 3 && sub.equals("set") && sender.hasPermission("shguide.admin.set")) {
