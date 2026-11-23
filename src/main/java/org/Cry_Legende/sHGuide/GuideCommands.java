@@ -7,11 +7,13 @@ import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 
 /** /guide pour les joueurs, /shguide pour l'administration. */
@@ -19,7 +21,7 @@ final class GuideCommands implements TabExecutor {
 
     private static final List<String> SUBS = List.of("reload", "info", "annonce", "set", "reset");
     private static final List<String> FIELDS = List.of("serie", "jour", "derniere-venue", "dernier-complet");
-    private static final String ANNONCE_USAGE = "/shguide annonce <minutes> <texte> | <commande>";
+    private static final String ANNONCE_USAGE = "/shguide annonce <minutes|HH:MM> <texte> | <commande>";
 
     private final SHGuide plugin;
 
@@ -35,6 +37,8 @@ final class GuideCommands implements TabExecutor {
                 m.send(sender, "joueurs-seulement");
             } else if (!p.hasPermission("shguide.use")) {
                 m.send(p, "permission");
+            } else if (args.length > 0 && args[0].equalsIgnoreCase("aller")) {
+                goToObjective(p);
             } else {
                 GuideMenu.open(plugin, p);
             }
@@ -62,6 +66,22 @@ final class GuideCommands implements TabExecutor {
         return true;
     }
 
+    /** /guide aller : lance le clic de l'objectif du moment (bouton « Y aller » du dialogue de retour). */
+    private void goToObjective(Player p) {
+        plugin.sessions().refresh(p);
+        Sessions.Session s = plugin.sessions().get(p.getUniqueId());
+        if (s == null) {
+            plugin.messages().send(p, "chargement");
+            return;
+        }
+        String click = s.objective == null ? "" : s.objective.click();
+        if (click.isEmpty() || click.equalsIgnoreCase("guide")) {
+            GuideMenu.open(plugin, p);
+        } else {
+            plugin.runCommands(p, java.util.List.of(click));
+        }
+    }
+
     private void info(CommandSender sender, Player p, Sessions.Session s) {
         LocalDate today = plugin.today();
         long done = s.last == null ? 0 : s.last.tasks().stream().filter(Programme.TaskView::done).count();
@@ -78,21 +98,19 @@ final class GuideCommands implements TabExecutor {
     private void annonce(CommandSender sender, String[] args) {
         String rest = String.join(" ", Arrays.copyOfRange(args, Math.min(2, args.length), args.length));
         int bar = rest.lastIndexOf(" | ");
-        int minutes;
-        try {
-            minutes = args.length < 3 || bar < 0 ? -1 : Integer.parseInt(args[1]);
-        } catch (NumberFormatException e) {
-            minutes = -1;
-        }
-        if (minutes < 0) {
+        ZonedDateTime now = ZonedDateTime.now(plugin.settings().zone());
+        OptionalLong start = args.length < 3 || bar < 0 ? OptionalLong.empty()
+                : Annonces.startOf(args[1], now, plugin.settings().annonceGraceMinutes());
+        if (start.isEmpty()) {
             plugin.messages().send(sender, "utilisation", "commandes", ANNONCE_USAGE);
             return;
         }
-        plugin.annonces().set(minutes, rest.substring(0, bar).trim(), rest.substring(bar + 3).trim(), System.currentTimeMillis());
+        plugin.annonces().set(start.getAsLong(), rest.substring(0, bar).trim(), rest.substring(bar + 3).trim());
         for (Player p : Bukkit.getOnlinePlayers()) {
             plugin.sessions().refresh(p);
         }
-        plugin.messages().send(sender, "annonce-ok", "minutes", Integer.toString(minutes));
+        long minutes = Math.max(0, (start.getAsLong() - now.toInstant().toEpochMilli() + 59_999) / 60_000);
+        plugin.messages().send(sender, "annonce-ok", "minutes", Long.toString(minutes));
     }
 
     private void set(CommandSender sender, String[] args) {
@@ -146,6 +164,9 @@ final class GuideCommands implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> out = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("guide")) {
+            if (args.length == 1 && "aller".startsWith(args[0].toLowerCase(Locale.ROOT))) {
+                out.add("aller");
+            }
             return out;
         }
         String sub = args[0].toLowerCase(Locale.ROOT);

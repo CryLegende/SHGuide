@@ -14,8 +14,8 @@ libraries:
 
 commands:
   guide:
-    description: Ouvre le menu de Jake.
-    usage: /<command>
+    description: Ouvre le menu de Jake, ou va à l'objectif du moment (aller).
+    usage: /<command> [aller]
   shguide:
     description: Administration du guide (reload, info, annonce, set, reset).
     usage: /<command> <reload|info|annonce|set|reset> ...

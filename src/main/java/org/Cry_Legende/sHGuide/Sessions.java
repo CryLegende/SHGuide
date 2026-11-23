@@ -137,7 +137,7 @@ final class Sessions implements Listener {
             plugin.sound(p, "programme");
         }
         long now = System.currentTimeMillis();
-        Annonces.Active a = plugin.annonces().current(now, cfg.annonceGraceMinutes());
+        Annonces.Active a = plugin.annonces().current(now, cfg.annonceBeforeMinutes(), cfg.annonceGraceMinutes());
         Annonces.Active shown = a == null ? null : new Annonces.Active(Annonces.label(a, now,
                 m.text("objectif.annonce-bientot"), m.text("objectif.annonce-commence")), a.click(), a.startMillis());
         Map<String, String> tokens = new HashMap<>(Objectives.tokens(t.tasks(), !s.state.pending.isEmpty(), shown,

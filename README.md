@@ -37,9 +37,10 @@ Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée 
 | Commande | Permission | Effet |
 |---|---|---|
 | `/guide` | `shguide.use` | Menu de Jake |
+| `/guide aller` | `shguide.use` | Lance le clic de l'objectif du moment (bouton « Y aller » du dialogue de retour) |
 | `/shguide reload` | `shguide.admin.reload` | Recharge `config.yml` et `messages.yml` |
 | `/shguide info <joueur>` | `shguide.admin.info` | Programme, série et dates d'un joueur |
-| `/shguide annonce <minutes> <texte> \| <commande>` | `shguide.admin.annonce` | Event qui commence dans `<minutes>` : il devient l'objectif du moment de tout le serveur |
+| `/shguide annonce <minutes\|HH:MM> <texte> \| <commande>` | `shguide.admin.annonce` | Event qui commence dans `<minutes>` ou à `HH:MM` : il devient l'objectif du moment de tout le serveur `annonce-avant-minutes` avant son début. L'annoncer plusieurs fois remplace l'annonce. |
 | `/shguide set <joueur> <serie\|jour\|derniere-venue\|dernier-complet> <valeur>` | `shguide.admin.set` | Corrige un joueur (dates au format 2026-11-23) |
 | `/shguide reset <joueur>` | `shguide.admin.reset` | Remet le guide du joueur à zéro |
 

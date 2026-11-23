@@ -19,7 +19,7 @@ record Settings(ZoneId zone, int checkSeconds, double nearRatio, String palierPl
                 List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward,
                 int cycle, Map<Integer, List<String>> steps, List<ObjectiveDef> objectives,
                 int returnDays, long returnDelayTicks, String dialogCondition, List<String> dialogCommands,
-                List<News> news, int newsMax, int annonceGraceMinutes,
+                List<News> news, int newsMax, int annonceBeforeMinutes, int annonceGraceMinutes,
                 Map<String, Integer> slots, List<Integer> taskSlots, String islandCommand, String settingsCommand,
                 Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db) {
 
@@ -175,7 +175,8 @@ record Settings(ZoneId zone, int checkSeconds, double nearRatio, String palierPl
                 List.copyOf(prog.getStringList("recompense")), cycle, steps, List.copyOf(objectives),
                 Math.max(1, ret.getInt("jours", 3)), Math.max(0, ret.getLong("delai-ticks", 60)),
                 ret.getString("dialogue-si", ""), List.copyOf(ret.getStringList("dialogue")), List.copyOf(news),
-                Math.max(0, ret.getInt("nouveautes-max", 2)), Math.max(0, c.getInt("annonce-apres-debut-minutes", 5)),
+                Math.max(0, ret.getInt("nouveautes-max", 2)), Math.max(0, c.getInt("annonce-avant-minutes", 15)),
+                Math.max(0, c.getInt("annonce-apres-debut-minutes", 5)),
                 slots, List.copyOf(taskSlots), menu.getString("ile-commande", "is"),
                 menu.getString("reglages-commande", "jake reglages"), icons, List.copyOf(help), sounds,
                 new DbConfig(db.getString("hote", "127.0.0.1"), db.getInt("port", 3306), db.getString("base", "minecraft"),

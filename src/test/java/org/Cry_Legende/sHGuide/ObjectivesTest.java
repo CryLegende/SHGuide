@@ -9,6 +9,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ObjectivesTest {
 
@@ -82,13 +83,35 @@ class ObjectivesTest {
     @Test
     void annonceExpiresAfterGrace() {
         Annonces a = new Annonces();
-        a.set(15, "TNT Run", "minijeu join", 0);
-        assertNotNull(a.current(14 * 60_000L, 5));
-        assertNotNull(a.current(19 * 60_000L, 5));
-        assertNull(a.current(21 * 60_000L, 5));
-        assertEquals("TNT Run dans 12 min", Annonces.label(a.current(3 * 60_000L, 5), 3 * 60_000L,
+        a.set(15 * 60_000L, "TNT Run", "minijeu join");
+        assertNotNull(a.current(14 * 60_000L, 15, 5));
+        assertNotNull(a.current(19 * 60_000L, 15, 5));
+        assertNull(a.current(21 * 60_000L, 15, 5));
+        assertEquals("TNT Run dans 12 min", Annonces.label(a.current(3 * 60_000L, 15, 5), 3 * 60_000L,
                 "{texte} dans {minutes} min", "{texte} commence"));
-        assertEquals("TNT Run commence", Annonces.label(a.current(16 * 60_000L, 5), 16 * 60_000L,
+        assertEquals("TNT Run commence", Annonces.label(a.current(16 * 60_000L, 15, 5), 16 * 60_000L,
                 "{texte} dans {minutes} min", "{texte} commence"));
+    }
+
+    @Test
+    void annonceShowsOnlyInTheWindowBeforeStart() {
+        Annonces a = new Annonces();
+        a.set(30 * 60_000L, "TNT Run", "minijeu join");
+        assertNull(a.current(0, 15, 5));
+        assertNotNull(a.current(15 * 60_000L, 15, 5));
+    }
+
+    @Test
+    void annonceStartFromMinutesOrClockTime() {
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.of(2026, 11, 23, 19, 30, 0, 0, java.time.ZoneId.of("Europe/Paris"));
+        long ms = now.toInstant().toEpochMilli();
+        assertEquals(ms + 10 * 60_000L, Annonces.startOf("10", now, 5).getAsLong());
+        assertEquals(ms + 30 * 60_000L, Annonces.startOf("20:00", now, 5).getAsLong());
+        // 19:28 vient de commencer : on garde aujourd'hui
+        assertEquals(ms - 2 * 60_000L, Annonces.startOf("19:28", now, 5).getAsLong());
+        // 00:00 est passé depuis longtemps : c'est demain
+        assertEquals(now.plusDays(1).withHour(0).withMinute(0).toInstant().toEpochMilli(),
+                Annonces.startOf("00:00", now, 5).getAsLong());
+        assertTrue(Annonces.startOf("bientôt", now, 5).isEmpty());
     }
 }

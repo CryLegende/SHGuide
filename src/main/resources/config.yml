@@ -8,9 +8,12 @@
 #
 # Commandes :
 #   /guide                                        Ouvre le menu de Jake (shguide.use).
+#   /guide aller                                  Lance le clic de l'objectif du moment.
 #   /shguide reload                               Recharge config.yml et messages.yml.
 #   /shguide info <joueur>                        Programme, série et dates d'un joueur.
-#   /shguide annonce <minutes> <texte> | <clic>   Event qui commence dans <minutes> : il devient l'objectif du moment.
+#   /shguide annonce <minutes|HH:MM> <texte> | <clic>
+#                                                 Event qui commence dans <minutes> ou à HH:MM (heure du fuseau) : il
+#                                                 devient l'objectif du moment de tout le serveur.
 #   /shguide set <joueur> <serie|jour|derniere-venue|dernier-complet> <valeur>   Corrige un joueur (dates 2026-11-23).
 #   /shguide reset <joueur>                       Remet le guide du joueur à zéro.
 #
@@ -182,7 +185,9 @@ retour:
     - date: "2026-11-23"
       texte: "Jake devient ton guide"
 
-# Minutes pendant lesquelles une annonce reste l'objectif après l'heure de début.
+# Une annonce devient l'objectif du moment ce nombre de minutes avant le début de l'event.
+annonce-avant-minutes: 15
+# Minutes pendant lesquelles elle le reste après l'heure de début.
 annonce-apres-debut-minutes: 5
 
 menu:

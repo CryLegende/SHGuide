@@ -22,7 +22,7 @@ chat:
   joueur-inconnu: "&7&l« &c&lJake &8&l» &7Joueur &c{joueur} &7introuvable ou pas connecté."
   reload-ok: "&7&l« &a&lSHGuide &8&l» &7Configuration rechargée."
   reload-erreur: "&7&l« &c&lSHGuide &8&l» &7{fichier} invalide, rien n'a changé. &c{erreur}"
-  annonce-ok: "&7&l« &a&lSHGuide &8&l» &7Annonce posée pour &a{minutes} min&7."
+  annonce-ok: "&7&l« &a&lSHGuide &8&l» &7Annonce posée, début dans &a{minutes} min&7."
   set-ok: "&7&l« &a&lSHGuide &8&l» &7{champ} de &a{joueur} &7mis à &a{valeur}&7."
   set-erreur: "&7&l« &c&lSHGuide &8&l» &7Valeur refusée pour {champ}, &c{valeur}&7."
   reset-ok: "&7&l« &a&lSHGuide &8&l» &7Guide de &a{joueur} &7remis à zéro."
