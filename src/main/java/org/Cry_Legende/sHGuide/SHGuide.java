@@ -98,6 +98,9 @@ public final class SHGuide extends JavaPlugin {
         if (fleche != null) {
             fleche.close();
         }
+        if (arrivee != null) {
+            arrivee.close();
+        }
         if (accueil != null) {
             accueil.hideAll();
         }

@@ -22,21 +22,29 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
                     int barSeconds, BossBar.Color color) {
     }
 
-    record Tutorial(List<Step> steps, BossBar.Color color, List<String> end, int checkSeconds) {
+    /** « barTicks » : ticks entre deux mises à jour de la barre ; « fullTicks » : temps où une étape faite la garde pleine. */
+    record Tutorial(List<Step> steps, BossBar.Color color, List<String> end, int checkSeconds, int barTicks, int fullTicks) {
     }
 
     /**
      * Étape du tutoriel : faite quand toutes les conditions de « fait-si » sont vraies. « cible » (monde x y z, avec
      * placeholders) donne la flèche ; « debut » est lancé quand l'étape devient la suivante, « recompense » quand elle
-     * est faite.
+     * est faite. « progres » (sur « sur ») ou « progres-si » remplit la barre, voir {@link EtapeProgres}.
      */
     record Step(String id, String text, List<String> lore, List<String> doneIf, String click, String icon,
-                String target, String targetName, List<String> start, List<String> reward, String rewardText) {
+                String target, String targetName, List<String> start, List<String> reward, String rewardText,
+                List<String> progress, double over, List<String> progressIf) {
     }
 
     /** Arrivée d'un nouveau joueur dans le monde des îles : il descend doucement vers son île sous un grand titre. */
     record Arrival(String world, double height, int fallSeconds, double speed, float pitch, String title, String subtitle,
-                   int fadeIn, int stay, int fadeOut, String sound, List<Timed> commands) {
+                   int fadeIn, int stay, int fadeOut, boolean alone, String sound, List<Timed> commands) {
+
+        /** Durée du titre, ou de la descente si elle est plus longue : les autres titres attendent jusque-là. */
+        int keepTicks() {
+            int descent = speed > 0 ? (int) Math.ceil(height / speed * 20) + 20 : 0;
+            return Math.max(fadeIn + stay + fadeOut, descent);
+        }
     }
 
     record Timed(long tick, String command) {
@@ -49,7 +57,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
     static final AccueilConfig DISABLED = new AccueilConfig(false,
             new Stay(10, "", "", List.of(), BossBar.Color.YELLOW),
             new Tomorrow(3, "", List.of(), "", List.of(), 60, 15, BossBar.Color.BLUE),
-            new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), 2),
+            new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), 2, 4, 25),
             null,
             new Arrow(false, "SPECTRAL_ARROW", 0.8f, 2.2, 0.7, 6, 4, -1, 0, 0.6f, 0.35, FlecheReglages.DEFAULT));
 
@@ -69,13 +77,15 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
         ConfigurationSection t = c.getConfigurationSection("tutoriel");
         Tutorial tutorial = t == null ? DISABLED.tutorial() : new Tutorial(steps(t.getConfigurationSection("etapes")),
                 color(t.getString("couleur-barre", "GREEN")), List.copyOf(t.getStringList("fin")),
-                Math.max(1, t.getInt("verification-secondes", 2)));
+                Math.max(1, t.getInt("verification-secondes", 2)), Math.max(1, t.getInt("barre-ticks", 4)),
+                Math.max(0, t.getInt("barre-pleine-ticks", 25)));
         ConfigurationSection a = c.getConfigurationSection("arrivee");
         Arrival arrival = a == null || a.getString("monde", "").isEmpty() ? null : new Arrival(a.getString("monde"),
                 a.getDouble("hauteur", 18), Math.max(0, a.getInt("chute-secondes", 7)),
                 Math.max(0, a.getDouble("vitesse-descente", 3)), (float) a.getDouble("regard-bas", 55),
                 a.getString("titre", ""), a.getString("sous-titre", ""), a.getInt("titre-apparition-ticks", 15),
-                a.getInt("titre-duree-ticks", 70), a.getInt("titre-disparition-ticks", 20), a.getString("son", ""),
+                a.getInt("titre-duree-ticks", 70), a.getInt("titre-disparition-ticks", 20),
+                a.getBoolean("titre-seul", true), a.getString("son", ""),
                 timed(a.getStringList("commandes")));
         ConfigurationSection f = c.getConfigurationSection("fleche");
         Arrow arrow = f == null ? DISABLED.arrow() : new Arrow(f.getBoolean("actif", true),
@@ -97,21 +107,33 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
             if (s == null) {
                 continue;
             }
-            List<String> doneIf = s.getStringList("fait-si");
-            for (String cond : doneIf) {
-                if (!Condition.valid(cond)) {
-                    throw new IllegalArgumentException("accueil.tutoriel.etapes." + id + ".fait-si : condition sans opérateur, " + cond);
-                }
-            }
+            List<String> doneIf = conditions(s, id, "fait-si");
             if (doneIf.isEmpty()) {
                 throw new IllegalArgumentException("accueil.tutoriel.etapes." + id + " : fait-si manquant");
             }
+            double over = s.getDouble("sur", 1);
+            if (over <= 0) {
+                throw new IllegalArgumentException("accueil.tutoriel.etapes." + id + ".sur : nombre plus grand que 0 attendu");
+            }
+            List<String> progress = s.isList("progres") ? s.getStringList("progres")
+                    : s.getString("progres", "").isBlank() ? List.of() : List.of(s.getString("progres"));
             out.add(new Step(id, s.getString("texte", id), List.copyOf(s.getStringList("description")),
                     List.copyOf(doneIf), s.getString("clic", ""), s.getString("icone", "PAPER"), s.getString("cible", ""),
                     s.getString("cible-nom", ""), List.copyOf(s.getStringList("debut")),
-                    List.copyOf(s.getStringList("recompense")), s.getString("recompense-texte", "")));
+                    List.copyOf(s.getStringList("recompense")), s.getString("recompense-texte", ""),
+                    List.copyOf(progress), over, List.copyOf(conditions(s, id, "progres-si"))));
         }
         return List.copyOf(out);
+    }
+
+    private static List<String> conditions(ConfigurationSection s, String id, String key) {
+        List<String> out = s.getStringList(key);
+        for (String cond : out) {
+            if (!Condition.valid(cond)) {
+                throw new IllegalArgumentException("accueil.tutoriel.etapes." + id + "." + key + " : condition sans opérateur, " + cond);
+            }
+        }
+        return out;
     }
 
     /** « 40 commande » : la commande part 40 ticks après le début de l'arrivée. */

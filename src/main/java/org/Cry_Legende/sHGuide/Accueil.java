@@ -11,6 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.UUID;
 
 /**
@@ -19,11 +20,24 @@ import java.util.UUID;
  */
 final class Accueil {
 
+    /** Barre montrée à un joueur, avec le texte (non décodé) qu'elle porte. */
+    private static final class Bar {
+        final BossBar bar;
+        String text;
+
+        Bar(BossBar bar, String text) {
+            this.bar = bar;
+            this.text = text;
+        }
+    }
+
     private final SHGuide plugin;
-    private final Map<UUID, BossBar> stayBars = new HashMap<>();
-    private final Map<UUID, BossBar> tomorrowBars = new HashMap<>();
+    private final Map<UUID, Bar> stayBars = new HashMap<>();
+    private final Map<UUID, Bar> tomorrowBars = new HashMap<>();
     private final Map<UUID, Long> tomorrowUntil = new HashMap<>();
-    private final Map<UUID, BossBar> tutoBars = new HashMap<>();
+    private final Map<UUID, Bar> tutoBars = new HashMap<>();
+    /** Fin (en millisecondes) du temps où la barre reste pleine, l'étape venant d'être faite. */
+    private final Map<UUID, Long> tutoFullUntil = new HashMap<>();
     private int ticks;
     private int seconds;
 
@@ -115,6 +129,7 @@ final class Accueil {
         tomorrowBars.remove(id);
         tomorrowUntil.remove(id);
         tutoBars.remove(id);
+        tutoFullUntil.remove(id);
     }
 
     void hideAll() {
@@ -125,7 +140,7 @@ final class Accueil {
         }
     }
 
-    /** À chaque tick : un vingtième des joueurs, chacun une fois par seconde. */
+    /** À chaque tick : un vingtième des joueurs (cadeaux), et ceux dont la barre du tutoriel a son tour. */
     void tick() {
         ticks++;
         if (ticks % 20 == 0) {
@@ -134,12 +149,23 @@ final class Accueil {
         AccueilConfig c = plugin.settings().accueil();
         LocalDate today = plugin.today();
         long now = System.currentTimeMillis();
+        int barTicks = c.tutorial().barTicks();
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if ((p.getEntityId() + ticks) % 20 != 0) {
+            int slot = p.getEntityId() + ticks;
+            boolean second = slot % 20 == 0;
+            boolean bar = slot % barTicks == 0;
+            if (!second && !bar) {
                 continue;
             }
             Sessions.Session s = plugin.sessions().get(p.getUniqueId());
             if (s == null || s.state.firstDay == null) {
+                continue;
+            }
+            boolean check = second && seconds % c.tutorial().checkSeconds() == 0;
+            if (bar || check) {
+                tickTutorial(p, s, c, now, check);
+            }
+            if (!second) {
                 continue;
             }
             tickStay(p, s, c, today);
@@ -151,12 +177,6 @@ final class Accueil {
                 tomorrowUntil.remove(p.getUniqueId());
                 hide(tomorrowBars, p);
             }
-            if (tutorialActive(s.state, c)) {
-                if (seconds % c.tutorial().checkSeconds() == 0) {
-                    checkTutorial(p, s, c);
-                }
-            }
-            updateTutoBar(p, s, c);
         }
     }
 
@@ -197,70 +217,103 @@ final class Accueil {
         }
     }
 
-    /** Fait passer les étapes dont les conditions sont vraies (plusieurs à la suite si le joueur était en avance). */
-    void checkTutorial(Player p, Sessions.Session s, AccueilConfig c) {
-        Resolver r = text -> PlaceholderAPI.setPlaceholders(p, text);
-        Messages m = plugin.messages();
-        int total = c.tutorial().steps().size();
-        for (int guard = 0; guard <= total; guard++) {
-            AccueilConfig.Step st = currentStep(s.state, c);
-            if (st == null) {
-                finish(p, s, c);
-                return;
-            }
-            if (!st.id().equals(s.state.tutoStarted)) {
-                s.state.tutoStarted = st.id();
-                s.dirty = true;
-                plugin.runCommands(p, st.start());
-            }
-            boolean done = true;
-            for (String cond : st.doneIf()) {
-                if (!Condition.test(cond, r)) {
-                    done = false;
-                    break;
-                }
-            }
-            if (!done) {
-                plugin.fleche().setTarget(p, s.state.arrowOff ? null : target(st, r), st.targetName());
-                return;
-            }
-            int n = stepNumber(s.state, c);
-            s.state.tutoDone.add(st.id());
-            s.dirty = true;
-            plugin.runCommands(p, st.reward());
-            String gain = st.rewardText().isEmpty() ? "" : m.text("chat.tutoriel-gain", "texte", st.rewardText());
-            m.send(p, "tutoriel-etape", "n", Integer.toString(n), "total", Integer.toString(total),
-                    "texte", st.text(), "gain", gain);
-            plugin.sound(p, "etape");
-            AccueilConfig.Step next = currentStep(s.state, c);
-            if (next != null) {
-                m.send(p, "tutoriel-suivante", "n", Integer.toString(n + 1), "total", Integer.toString(total),
-                        "texte", next.text());
-            }
-            plugin.fleche().setTarget(p, null, "");
+    /**
+     * Barre du tutoriel : elle se remplit à chaque action de l'étape, reste pleine un moment quand l'étape est faite,
+     * puis repart de 0 à la suivante. Les conditions de l'étape sont relues à « verification-secondes », et dès que la
+     * barre est pleine ou n'est plus lisible (une quête finie n'a plus d'avancée).
+     */
+    private void tickTutorial(Player p, Sessions.Session s, AccueilConfig c, long now, boolean check) {
+        UUID id = p.getUniqueId();
+        Long full = tutoFullUntil.get(id);
+        if (full != null && now < full) {
+            return;
         }
+        tutoFullUntil.remove(id);
+        AccueilConfig.Step st = tutorialActive(s.state, c) ? currentStep(s.state, c) : null;
+        if (st == null) {
+            hide(tutoBars, p);
+            // étapes retirées de la config : plus rien à faire, le tutoriel se termine
+            if (check && tutorialActive(s.state, c)) {
+                finish(p, s, c);
+            }
+            return;
+        }
+        Resolver r = text -> PlaceholderAPI.setPlaceholders(p, text);
+        begin(p, s, st, r);
+        OptionalDouble raw = EtapeProgres.raw(st, r);
+        if ((check || raw.isEmpty() || raw.getAsDouble() >= 1) && checkStep(p, s, c, st, r, now)) {
+            return;
+        }
+        float shown = 0f;
+        if (raw.isPresent()) {
+            if (s.state.tutoBase == null) {
+                s.state.tutoBase = raw.getAsDouble();
+                s.dirty = true;
+            }
+            shown = EtapeProgres.since(raw.getAsDouble(), s.state.tutoBase);
+        } else if (tutoBars.get(id) != null) {
+            shown = tutoBars.get(id).bar.progress();
+        }
+        showStep(p, c, st, stepNumber(s.state, c), shown);
     }
 
+    /** L'étape devient celle du joueur : sa barre partira de l'avancée d'aujourd'hui, et « debut » est lancé. */
+    private void begin(Player p, Sessions.Session s, AccueilConfig.Step st, Resolver r) {
+        if (st.id().equals(s.state.tutoStarted)) {
+            return;
+        }
+        s.state.tutoStarted = st.id();
+        OptionalDouble raw = EtapeProgres.raw(st, r);
+        s.state.tutoBase = raw.isPresent() ? raw.getAsDouble() : null;
+        s.dirty = true;
+        plugin.runCommands(p, st.start());
+    }
+
+    /** Vrai si l'étape vient d'être faite : barre pleine, récompense, messages, et l'étape suivante commence. */
+    private boolean checkStep(Player p, Sessions.Session s, AccueilConfig c, AccueilConfig.Step st, Resolver r, long now) {
+        for (String cond : st.doneIf()) {
+            if (!Condition.test(cond, r)) {
+                plugin.fleche().setTarget(p, s.state.arrowOff ? null : target(st, r), st.targetName());
+                return false;
+            }
+        }
+        Messages m = plugin.messages();
+        int total = c.tutorial().steps().size();
+        int n = stepNumber(s.state, c);
+        s.state.tutoDone.add(st.id());
+        s.dirty = true;
+        showStep(p, c, st, n, 1f);
+        tutoFullUntil.put(p.getUniqueId(), now + c.tutorial().fullTicks() * 50L);
+        plugin.runCommands(p, st.reward());
+        String gain = st.rewardText().isEmpty() ? "" : m.text("chat.tutoriel-gain", "texte", st.rewardText());
+        m.send(p, "tutoriel-etape", "n", Integer.toString(n), "total", Integer.toString(total),
+                "texte", st.text(), "gain", gain);
+        plugin.sound(p, "etape");
+        plugin.fleche().setTarget(p, null, "");
+        AccueilConfig.Step next = currentStep(s.state, c);
+        if (next == null) {
+            finish(p, s, c);
+            return true;
+        }
+        m.send(p, "tutoriel-suivante", "n", Integer.toString(n + 1), "total", Integer.toString(total),
+                "texte", next.text());
+        begin(p, s, next, r);
+        return true;
+    }
+
+    /** La barre, encore pleine, s'efface avec « barre-pleine-ticks ». */
     private void finish(Player p, Sessions.Session s, AccueilConfig c) {
         s.state.tutoFinished = true;
         s.dirty = true;
-        hide(tutoBars, p);
         plugin.fleche().setTarget(p, null, "");
         plugin.runCommands(p, c.tutorial().end());
         plugin.messages().send(p, "tutoriel-fini");
         plugin.sound(p, "tutoriel-fin");
     }
 
-    private void updateTutoBar(Player p, Sessions.Session s, AccueilConfig c) {
-        AccueilConfig.Step st = tutorialActive(s.state, c) ? currentStep(s.state, c) : null;
-        if (st == null) {
-            hide(tutoBars, p);
-            return;
-        }
-        int total = c.tutorial().steps().size();
-        int n = stepNumber(s.state, c);
+    private void showStep(Player p, AccueilConfig c, AccueilConfig.Step st, int n, float progress) {
         show(tutoBars, p, plugin.messages().text("accueil.barre-tutoriel", "n", Integer.toString(n),
-                "total", Integer.toString(total), "texte", st.text()), (n - 1) / (float) total, c.tutorial().color());
+                "total", Integer.toString(c.tutorial().steps().size()), "texte", st.text()), progress, c.tutorial().color());
     }
 
     /** Cible de l'étape après les placeholders ; null si elle n'en a pas ou si elle est illisible. */
@@ -268,24 +321,27 @@ final class Accueil {
         return st.target().isBlank() ? null : Fleche.place(r.resolve(st.target()));
     }
 
-    private void show(Map<UUID, BossBar> bars, Player p, String text, float progress, BossBar.Color color) {
-        BossBar bar = bars.get(p.getUniqueId());
+    private void show(Map<UUID, Bar> bars, Player p, String text, float progress, BossBar.Color color) {
+        Bar shown = bars.get(p.getUniqueId());
         float clamped = Math.max(0f, Math.min(1f, progress));
-        if (bar == null) {
-            bar = BossBar.bossBar(Messages.chat(text), clamped, color, BossBar.Overlay.PROGRESS);
-            bars.put(p.getUniqueId(), bar);
-            p.showBossBar(bar);
+        if (shown == null) {
+            shown = new Bar(BossBar.bossBar(Messages.chat(text), clamped, color, BossBar.Overlay.PROGRESS), text);
+            bars.put(p.getUniqueId(), shown);
+            p.showBossBar(shown.bar);
             return;
         }
-        bar.name(Messages.chat(text));
-        bar.progress(clamped);
-        bar.color(color);
+        if (!text.equals(shown.text)) {
+            shown.bar.name(Messages.chat(text));
+            shown.text = text;
+        }
+        shown.bar.progress(clamped);
+        shown.bar.color(color);
     }
 
-    private static void hide(Map<UUID, BossBar> bars, Player p) {
-        BossBar bar = bars.remove(p.getUniqueId());
-        if (bar != null) {
-            p.hideBossBar(bar);
+    private static void hide(Map<UUID, Bar> bars, Player p) {
+        Bar shown = bars.remove(p.getUniqueId());
+        if (shown != null) {
+            p.hideBossBar(shown.bar);
         }
     }
 }

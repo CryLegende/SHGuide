@@ -1,5 +1,6 @@
 package org.Cry_Legende.sHGuide;
 
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -9,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
@@ -23,9 +25,25 @@ import java.util.List;
 final class Arrivee implements Listener {
 
     private final SHGuide plugin;
+    /** Null sans packetevents : le titre de l'arrivée n'est alors pas protégé. */
+    private final TitreSeul alone;
 
     Arrivee(SHGuide plugin) {
         this.plugin = plugin;
+        this.alone = Bukkit.getPluginManager().isPluginEnabled("packetevents") ? new TitreSeul() : null;
+    }
+
+    void close() {
+        if (alone != null) {
+            alone.close();
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent e) {
+        if (alone != null) {
+            alone.release(e.getPlayer().getUniqueId());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -67,10 +85,7 @@ final class Arrivee implements Listener {
             }
         }
         if (!a.title().isEmpty() || !a.subtitle().isEmpty()) {
-            String name = p.getName();
-            p.showTitle(Title.title(Messages.chat(Messages.replace(a.title(), "joueur", name)),
-                    Messages.chat(Messages.replace(a.subtitle(), "joueur", name)),
-                    Title.Times.times(ticks(a.fadeIn()), ticks(a.stay()), ticks(a.fadeOut()))));
+            showTitle(p, a);
         }
         if (!a.sound().isEmpty()) {
             p.playSound(p.getLocation(), a.sound(), 1f, 1f);
@@ -127,6 +142,19 @@ final class Arrivee implements Listener {
             next.setY(Math.max(home.getY(), at.getY() - step));
             seat.teleport(next, io.papermc.paper.entity.TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }, 10L, 2L);
+    }
+
+    /** Titre de l'arrivée, seul à l'écran jusqu'à la fin de la descente si « titre-seul ». */
+    private void showTitle(Player p, AccueilConfig.Arrival a) {
+        Component title = Messages.chat(Messages.replace(a.title(), "joueur", p.getName()));
+        Component subtitle = Messages.chat(Messages.replace(a.subtitle(), "joueur", p.getName()));
+        if (alone == null || !a.alone()) {
+            p.showTitle(Title.title(title, subtitle,
+                    Title.Times.times(ticks(a.fadeIn()), ticks(a.stay()), ticks(a.fadeOut()))));
+            return;
+        }
+        alone.show(p, title, subtitle, a.fadeIn(), a.stay(), a.fadeOut(), a.keepTicks());
+        Bukkit.getScheduler().runTaskLater(plugin, () -> alone.release(p.getUniqueId()), a.keepTicks());
     }
 
     private static Duration ticks(int t) {

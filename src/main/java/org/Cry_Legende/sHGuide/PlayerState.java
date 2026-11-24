@@ -48,6 +48,8 @@ public final class PlayerState {
     public Set<String> tutoDone = new HashSet<>();
     /** Étape dont les commandes « debut » ont été lancées. */
     public String tutoStarted;
+    /** Avancée brute (0 à 1) de cette étape quand elle a commencé : sa barre part de là. Null si elle n'a pas pu être lue. */
+    public Double tutoBase;
     /** Tutoriel fini (ou jamais commencé pour un ancien joueur). */
     public boolean tutoFinished;
     /** Séquence d'arrivée sur l'île déjà jouée. */

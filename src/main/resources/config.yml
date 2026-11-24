@@ -333,11 +333,16 @@ sons:
 #   # moment dans le menu de Jake et le scoreboard, flèche vers « cible » quand l'étape en a une.
 #   #   fait-si      conditions toutes vraies = étape faite (passée tout de suite si le joueur l'a déjà faite)
 #   #   clic         commande du joueur au clic sur l'objectif (menu de Jake, /guide aller)
+#   #   progres      placeholder (ou liste, la plus avancée compte) qui remplit la barre, pleine à « sur » ; elle part de 0
+#   #                au début de l'étape. Sans lui : part des conditions vraies de « progres-si », sinon de « fait-si »
 #   #   cible        « monde x y z » (placeholders acceptés) : la flèche y mène ; cible-nom s'affiche avec la distance
 #   #   debut        commandes quand l'étape devient la suivante ; recompense quand elle est faite
 #   tutoriel:
 #     couleur-barre: GREEN
 #     verification-secondes: 2
+#     # Ticks entre deux mises à jour de la barre, et temps où elle reste pleine quand une étape vient d'être faite.
+#     barre-ticks: 4
+#     barre-pleine-ticks: 25
 #     etapes:
 #       arbre:
 #         texte: "Coupez l'arbre de votre île"
@@ -346,6 +351,8 @@ sons:
 #           - "   &7L'arbre est juste devant vous, cassez ses 6 bûches."
 #         fait-si:
 #           - "%questcreator_quest_p01_03_completions% >= 1"
+#         progres: "%questcreator_quest_p01_03_objective_progression_percentage%"
+#         sur: 100
 #         clic: "is go"
 #         recompense:
 #           - "[console] shprogress progress {joueur} premiers-pas/arbre 1"
@@ -356,6 +363,8 @@ sons:
 #           - "   &7La pierre se reforme toute seule entre l'eau et la lave."
 #         fait-si:
 #           - "%questcreator_quest_p01_04_completions% >= 1"
+#         progres: "%questcreator_quest_p01_04_objective_progression_percentage%"
+#         sur: 100
 #         clic: "is go"
 #         recompense:
 #           - "[console] shprogress progress {joueur} premiers-pas/generateur 1"
@@ -376,6 +385,8 @@ sons:
 #           - "   &7Chaque bloc posé fait monter le niveau de l'île (/is level)."
 #         fait-si:
 #           - "%questcreator_quest_p01_09_completions% >= 1"
+#         progres: "%questcreator_quest_p01_09_objective_progression_percentage%"
+#         sur: 100
 #         clic: "is go"
 #         recompense:
 #           - "[console] shprogress progress {joueur} premiers-pas/ile 1"
@@ -443,6 +454,8 @@ sons:
 #     titre-apparition-ticks: 15
 #     titre-duree-ticks: 100
 #     titre-disparition-ticks: 25
+#     # Pendant la descente, les titres des autres plugins ne s'affichent pas (demande packetevents).
+#     titre-seul: true
 #     son: "minecraft:ui.toast.challenge_complete"
 #     commandes: []
 #   # Flèche vers l'étape : item à « devant » blocs du joueur, du côté de la cible, « hauteur » blocs au-dessus du sol, et

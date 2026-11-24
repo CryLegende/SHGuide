@@ -98,6 +98,7 @@ final class GuideCommands implements TabExecutor {
                 s.state.welcome.clear();
                 s.state.tutoDone.clear();
                 s.state.tutoStarted = null;
+                s.state.tutoBase = null;
                 s.state.tutoFinished = false;
                 s.state.arrived = false;
                 s.state.pending.removeIf(id -> id.startsWith("accueil:"));
