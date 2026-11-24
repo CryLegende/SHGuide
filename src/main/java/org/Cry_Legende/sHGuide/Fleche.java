@@ -12,6 +12,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.player.PlayerVelocityEvent;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
@@ -29,9 +30,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
 /**
- * Flèche vers une cible : un item display posé autour du joueur, du côté de la cible, à hauteur fixe au-dessus du sol, et
- * la distance au-dessus. Tourner la tête, sauter ou se baisser ne la bouge pas. Elle n'existe que chez ce joueur (paquets)
- * et glisse d'une position à l'autre (interpolation du client) ; rien n'est envoyé tant qu'elle ne change pas.
+ * Flèche vers une cible ou le long d'un chemin : un item display posé autour du joueur, du côté où aller, à hauteur fixe
+ * au-dessus du sol, et la distance au-dessus. Tourner la tête, sauter ou se baisser ne la bouge pas, dépasser un point du
+ * chemin ne la retourne pas. Elle n'existe que chez ce joueur (paquets) et glisse d'une position à l'autre (interpolation du
+ * client) ; rien n'est envoyé tant qu'elle ne change pas.
  *
  * Le fil principal ne fait que relever la position des joueurs et sonder les murs, pour un nombre limité de flèches par
  * tick ; le calcul et les paquets se font sur le fil de la flèche, seul à connaître ce que voit chaque client.
@@ -46,18 +48,44 @@ final class Fleche implements Listener {
     private static final int PROBE_AT_LEAST = 40;
 
     /**
-     * Cible en plus du tutoriel : « cible » (monde x y z), « nom » et « texte » avec placeholders ; un texte remplace le
-     * nom et la distance. « arrive » et « distance-min » valent ceux de accueil.fleche s'ils sont absents (-1).
+     * Cible en plus du tutoriel : « cible » (monde x y z, ou un chemin monde x y z x y z …), « nom » et « texte » avec
+     * placeholders ; un texte remplace le nom et la distance. « fin » : texte laissé quand la cible disparaît. « arrive » et
+     * « distance-min » valent ceux de accueil.fleche s'ils sont absents (-1).
      */
-    record Source(String id, String target, String name, String text, double arrived, double minDistance) {
+    record Source(String id, String target, String name, String text, String end, double arrived, double minDistance) {
     }
 
-    private record Target(Location place, String name, String text, double arrived, double minDistance) {
+    /** Points à suivre : x y z de chacun, un seul pour une cible fixe. */
+    private record Target(World world, double[] points, String name, String text, double arrived, double minDistance) {
+
+        double x() {
+            return points[points.length - 3];
+        }
+
+        double y() {
+            return points[points.length - 2];
+        }
+
+        double z() {
+            return points[points.length - 1];
+        }
     }
 
-    /** Ce que le fil principal donne pour un tick ; « target » null : la flèche se cache. */
-    private record Step(Arrow arrow, Target target, double x, double y, double z, boolean standing, double lead, double distance,
-                        double low, double high, int epoch, int ticks, int glide, AccueilConfig.Arrow cfg) {
+    /** Adieu : la flèche s'efface, son texte reste un moment. */
+    private static final class Farewell {
+        final String text;
+        int left;
+        boolean faded;
+
+        Farewell(String text, int left) {
+            this.text = text;
+            this.left = left;
+        }
+    }
+
+    /** Ce que le fil principal donne pour un tick ; ni cible ni adieu : la flèche se cache. */
+    private record Step(Arrow arrow, Target target, Farewell farewell, double[] impulse, double x, double y, double z, boolean standing, double lead,
+                        double distance, double low, double high, int epoch, int ticks, int glide, AccueilConfig.Arrow cfg) {
     }
 
     private static final class Arrow {
@@ -70,6 +98,9 @@ final class Fleche implements Listener {
         final AtomicInteger epoch = new AtomicInteger();
         volatile Target tutorial;
         volatile Target other;
+        volatile Source source;
+        volatile Farewell farewell;
+        volatile double[] impulse;
         volatile boolean gone;
         // Publié par le fil de la flèche
         volatile boolean shown;
@@ -89,10 +120,14 @@ final class Fleche implements Listener {
         double high;
         // Fil de la flèche
         String readText = "";
-        Location readPlace;
+        World readWorld;
+        double[] readPoints;
         final Suivi follow = new Suivi();
+        final Chemin path = new Chemin();
+        double[] pathPoints;
         int shownEpoch;
         int shownGlide;
+        float shownScale;
         double sx;
         double sy;
         double sz;
@@ -144,7 +179,7 @@ final class Fleche implements Listener {
     /** Cible de l'étape du tutoriel ; null l'enlève. */
     void setTarget(Player p, Location target, String name) {
         Target t = target == null || !plugin.settings().accueil().arrow().enabled() ? null
-                : new Target(target, name == null ? "" : name, "", -1, -1);
+                : new Target(target.getWorld(), new double[]{target.getX(), target.getY(), target.getZ()}, name == null ? "" : name, "", -1, -1);
         set(p, t, false);
     }
 
@@ -159,7 +194,9 @@ final class Fleche implements Listener {
         } else {
             a.tutorial = t;
         }
-        if (a.target() == null) {
+        if (t != null) {
+            a.farewell = null;
+        } else if (a.target() == null && a.farewell == null) {
             remove(a);
         }
     }
@@ -218,6 +255,16 @@ final class Fleche implements Listener {
         }
     }
 
+    /** Élan envoyé au joueur (double saut, plaque, coup) : la flèche part avec lui. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onVelocity(PlayerVelocityEvent e) {
+        Arrow a = arrows.get(e.getPlayer().getUniqueId());
+        if (a != null && a.shown) {
+            Vector v = e.getVelocity();
+            a.impulse = new double[]{v.getX(), v.getY(), v.getZ()};
+        }
+    }
+
     /**
      * Relit les cibles de la section « fleches », la première lisible est gardée : souvent pour un joueur qui en a déjà
      * une, plus rarement pour les autres, une part des joueurs à la fois. Toutes les 50 ms, sur le fil de la flèche.
@@ -234,35 +281,49 @@ final class Fleche implements Listener {
             Arrow a = arrows.get(p.getUniqueId());
             int period = a != null && a.other != null ? r.readActiveTicks() : r.readTicks();
             if ((p.getEntityId() + reads) % period == 0) {
-                read(p, a, sources);
+                read(p, a, sources, r);
             }
         }
     }
 
-    private void read(Player p, Arrow a, List<Source> sources) {
+    private void read(Player p, Arrow a, List<Source> sources, FlecheReglages r) {
         for (Source s : sources) {
             String text = filled(p, s.target());
             if (text.isBlank()) {
                 continue;
             }
-            Location place = a != null && text.equals(a.readText) ? a.readPlace : place(text);
-            if (place == null) {
+            World world;
+            double[] points;
+            if (a != null && text.equals(a.readText)) {
+                world = a.readWorld;
+                points = a.readPoints;
+            } else {
+                points = points(text);
+                world = points == null ? null : Bukkit.getWorld(text.trim().split("\\s+", 2)[0]);
+            }
+            if (world == null) {
                 continue;
             }
             String name = filled(p, s.name());
             String over = filled(p, s.text());
             Target old = a == null ? null : a.other;
-            if (old == null || old.place() != place || !old.name().equals(name) || !old.text().equals(over)) {
-                set(p, new Target(place, name, over, s.arrived(), s.minDistance()), true);
+            if (old == null || old.points() != points || old.world() != world || !old.name().equals(name) || !old.text().equals(over)) {
+                set(p, new Target(world, points, name, over, s.arrived(), s.minDistance()), true);
             }
             Arrow now = arrows.get(p.getUniqueId());
             if (now != null) {
+                now.source = s;
                 now.readText = text;
-                now.readPlace = place;
+                now.readWorld = world;
+                now.readPoints = points;
             }
             return;
         }
         if (a != null && a.other != null) {
+            Source s = a.source;
+            String end = s == null || !a.shown || a.tutorial != null || r.endTicks() == 0 ? "" : filled(p, s.end());
+            a.readText = "";
+            a.farewell = end.isBlank() ? null : new Farewell(end, r.endTicks());
             set(p, null, true);
         }
     }
@@ -273,19 +334,27 @@ final class Fleche implements Listener {
 
     /** « monde x y z » ; null si vide, monde inconnu ou nombres illisibles. */
     static Location place(String text) {
+        double[] v = points(text);
+        World w = v == null ? null : Bukkit.getWorld(text.trim().split("\\s+", 2)[0]);
+        return w == null ? null : new Location(w, v[0], v[1], v[2]);
+    }
+
+    /** Nombres de « monde x y z x y z … » ; null si vide ou illisible. */
+    static double[] points(String text) {
         String[] parts = text.trim().split("\\s+");
-        if (parts.length < 4) {
+        int n = (parts.length - 1) / 3;
+        if (n == 0) {
             return null;
         }
-        World w = Bukkit.getWorld(parts[0]);
-        if (w == null) {
-            return null;
-        }
+        double[] out = new double[3 * n];
         try {
-            return new Location(w, Double.parseDouble(parts[1]), Double.parseDouble(parts[2]), Double.parseDouble(parts[3]));
+            for (int i = 0; i < out.length; i++) {
+                out[i] = Double.parseDouble(parts[i + 1]);
+            }
         } catch (NumberFormatException e) {
             return null;
         }
+        return out;
     }
 
     /** À chaque tick : « par-tick-max » flèches au plus, les autres attendent leur tour. */
@@ -324,39 +393,59 @@ final class Fleche implements Listener {
     private Step step(Arrow a, AccueilConfig.Arrow cfg, int stride) {
         Player p = a.player;
         Target target = a.target();
+        Farewell farewell = target == null ? a.farewell : null;
         FlecheReglages r = cfg.tuning();
-        boolean hide = target == null || !cfg.enabled();
+        boolean hide = target == null && farewell == null || !cfg.enabled();
         Location pl = null;
         double dist = 0;
         if (!hide) {
             pl = p.getLocation();
-            hide = target.place().getWorld() != pl.getWorld() || p.isDead() || p.isInsideVehicle();
-            if (!hide) {
-                dist = pl.distance(target.place());
+            hide = p.isDead() || p.isInsideVehicle() || target != null && target.world() != pl.getWorld();
+            if (!hide && target != null) {
+                dist = Math.sqrt(square(pl.getX() - target.x()) + square(pl.getY() - target.y()) + square(pl.getZ() - target.z()));
                 hide = dist < (target.arrived() >= 0 ? target.arrived() : cfg.arrivedDistance())
                         || dist < (target.minDistance() >= 0 ? target.minDistance() : cfg.minDistance()) && !a.shown;
             }
         }
         if (hide) {
             a.lastStep = Integer.MIN_VALUE;
-            return a.shown ? new Step(a, null, 0, 0, 0, false, 0, 0, 0, 0, 0, 1, 0, cfg) : null;
+            if (farewell != null) {
+                remove(a);
+                return null;
+            }
+            return a.shown ? new Step(a, null, null, null, 0, 0, 0, false, 0, 0, 0, 0, 0, 1, 0, cfg) : null;
         }
         boolean standing = p.isOnGround() || p.isFlying() || p.isClimbing() || p.isInWater() || p.isGliding();
         int ticks = a.lastStep == Integer.MIN_VALUE ? 1 : Math.max(1, Math.min(10, now - a.lastStep));
         a.lastStep = now;
+        double[] impulse = a.impulse;
+        a.impulse = null;
         probe(a, pl, target, cfg);
-        return new Step(a, target, pl.getX(), pl.getY(), pl.getZ(), standing, Math.min(r.leadMax(), r.glide() - 1 + p.getPing() / 50.0), dist,
-                a.low, a.high, a.epoch.get(), ticks, r.glide() + stride - 1, cfg);
+        return new Step(a, target, farewell, impulse, pl.getX(), pl.getY(), pl.getZ(), standing, Math.min(r.leadMax(), r.glide() - 1 + r.lead() + p.getPing() / 50.0),
+                dist, a.low, a.high, a.epoch.get(), ticks, r.glide() + stride - 1, cfg);
+    }
+
+    private static double square(double v) {
+        return v * v;
     }
 
     /** Place libre devant le joueur, du côté de la cible : sondée quand il a bougé ou tourné, jamais à chaque tick. */
     private void probe(Arrow a, Location pl, Target target, AccueilConfig.Arrow cfg) {
         FlecheReglages r = cfg.tuning();
         boolean placed = a.placed && a.shown;
+        if (!placed && target == null) {
+            return;
+        }
         double x = placed ? a.ax : pl.getX();
         double y = placed ? a.ay : pl.getY();
         double z = placed ? a.az : pl.getZ();
-        double heading = placed ? a.heading : Math.atan2(target.place().getZ() - z, target.place().getX() - x);
+        double heading;
+        if (placed) {
+            heading = a.heading;
+        } else {
+            int next = target.points().length > 3 ? 3 : 0;
+            heading = Math.atan2(target.points()[next + 2] - z, target.points()[next] - x);
+        }
         boolean first = a.probedAt == Integer.MIN_VALUE || !placed;
         int since = first ? 0 : now - a.probedAt;
         if (!first) {
@@ -375,8 +464,9 @@ final class Fleche implements Listener {
         a.probedZ = z;
         a.probedHeading = heading;
         Vector out = new Vector(Math.cos(heading), 0, Math.sin(heading));
-        a.low = free(pl.getWorld(), x, y + cfg.height(), z, out, cfg.ahead(), r);
-        a.high = a.low >= cfg.ahead() ? a.low : free(pl.getWorld(), x, y + cfg.height() + r.stepLift(), z, out, cfg.ahead(), r);
+        double reach = cfg.ahead() + r.speedAheadMax();
+        a.low = free(pl.getWorld(), x, y + cfg.height(), z, out, reach, r);
+        a.high = a.low >= cfg.ahead() ? a.low : free(pl.getWorld(), x, y + cfg.height() + r.stepLift(), z, out, reach, r);
     }
 
     private static double free(World world, double x, double y, double z, Vector out, double ahead, FlecheReglages r) {
@@ -387,7 +477,7 @@ final class Fleche implements Listener {
     /** Fil de la flèche. */
     private void advance(Step s) {
         Arrow a = s.arrow();
-        if (s.target() == null || a.gone) {
+        if (a.gone || s.target() == null && s.farewell() == null) {
             hide(a);
             return;
         }
@@ -395,22 +485,39 @@ final class Fleche implements Listener {
             hide(a);
         }
         FlecheReglages r = s.cfg().tuning();
-        boolean fresh = !a.shown || !a.follow.ready();
-        Location to = s.target().place();
-        a.follow.follow(s.x(), s.y(), s.z(), s.standing(), s.lead(), s.ticks(), r);
-        a.follow.turn(to.getX(), to.getZ(), s.ticks(), r);
-        // Un mur entre le joueur et la flèche la rapproche, une marche la relève
-        if (s.low() >= s.cfg().ahead()) {
-            a.follow.place(s.cfg().ahead(), 0, fresh, s.ticks(), r);
-        } else if (s.high() > s.low()) {
-            a.follow.place(Math.max(r.wallMin(), s.high()), r.stepLift(), fresh, s.ticks(), r);
-        } else {
-            a.follow.place(Math.max(r.wallMin(), s.low()), 0, fresh, s.ticks(), r);
+        if (s.farewell() != null && (!a.shown || (s.farewell().left -= s.ticks()) <= 0)) {
+            if (a.farewell == s.farewell() && a.target() == null) {
+                remove(a);
+            }
+            return;
         }
-        a.ax = a.follow.x;
-        a.ay = a.follow.y;
-        a.az = a.follow.z;
-        a.heading = a.follow.heading;
+        boolean fresh = !a.shown || !a.follow.ready();
+        Suivi f = a.follow;
+        if (s.impulse() != null) {
+            f.impulse(s.impulse()[0], s.impulse()[1], s.impulse()[2]);
+        }
+        f.follow(s.x(), s.y(), s.z(), s.standing(), s.lead(), s.ticks(), r);
+        if (s.target() != null) {
+            if (a.pathPoints != s.target().points()) {
+                a.pathPoints = s.target().points();
+                a.path.set(a.pathPoints);
+            }
+            a.path.follow(f.x, s.y(), f.z, f.ground, f.speed(), r);
+            f.turn(a.path.aimX, a.path.aimZ, s.ticks(), r);
+        }
+        // Un mur entre le joueur et la flèche la rapproche, une marche la relève, la vitesse l'éloigne
+        double wanted = s.cfg().ahead() + Math.max(0, Math.min(r.speedAheadMax(), f.forward() * r.speedAhead()));
+        if (s.low() >= wanted) {
+            f.place(wanted, 0, fresh, s.ticks(), r);
+        } else if (s.high() > s.low()) {
+            f.place(Math.max(r.wallMin(), Math.min(wanted, s.high())), r.stepLift(), fresh, s.ticks(), r);
+        } else {
+            f.place(Math.max(r.wallMin(), s.low()), 0, fresh, s.ticks(), r);
+        }
+        a.ax = f.x;
+        a.ay = f.y;
+        a.az = f.z;
+        a.heading = f.heading;
         a.placed = true;
         draw(a, s, r);
     }
@@ -418,18 +525,21 @@ final class Fleche implements Listener {
     private void draw(Arrow a, Step s, FlecheReglages r) {
         Suivi f = a.follow;
         AccueilConfig.Arrow cfg = s.cfg();
-        Location to = s.target().place();
         double height = cfg.height() + f.lift;
         double ox = Math.cos(f.heading) * f.radius;
         double oz = Math.sin(f.heading) * f.radius;
         double x = f.x + ox;
         double y = f.y + height;
         double z = f.z + oz;
-        double flat = Math.max(0.01, Math.hypot(to.getX() - f.x, to.getZ() - f.z));
-        Vector3f direction = new Vector3f((float) (Math.cos(f.heading) * flat), (float) (to.getY() - y), (float) (Math.sin(f.heading) * flat));
-        Vector3f toEyes = new Vector3f((float) -ox, (float) (r.eyes() - height), (float) -oz);
-        Quaternionf turn = Orientation.of(direction, toEyes, cfg.yawOffset(), r);
-        String label = label(a, s, r);
+        Quaternionf turn = a.sentTurn;
+        if (s.target() != null) {
+            double flat = Math.max(0.01, a.path.run);
+            double up = a.path.aimY - a.path.fromY - (a.path.path() ? 0 : height);
+            Vector3f direction = new Vector3f((float) (Math.cos(f.heading) * flat), (float) up, (float) (Math.sin(f.heading) * flat));
+            Vector3f toEyes = new Vector3f((float) -ox, (float) (r.eyes() + f.above - height), (float) -oz);
+            turn = Orientation.of(direction, toEyes, cfg.yawOffset(), r);
+        }
+        String label = s.target() == null ? s.farewell().text : label(a, s, r);
         Player p = a.player;
         if (!a.shown) {
             Material mat = Material.matchMaterial(cfg.item());
@@ -439,12 +549,22 @@ final class Fleche implements Listener {
             a.shown = true;
             a.shownEpoch = s.epoch();
             a.shownGlide = s.glide();
+            a.shownScale = cfg.scale();
             a.sentTurn = turn;
             a.lastLabel = label;
             a.sx = x;
             a.sy = y;
             a.sz = z;
             return;
+        }
+        if (s.farewell() != null && !s.farewell().faded) {
+            // La flèche s'efface, son texte reste
+            s.farewell().faded = true;
+            a.shownScale = 0;
+            FlechePaquets.scale(p, a.item, 0, r.endFade());
+        } else if (s.target() != null && a.shownScale == 0) {
+            a.shownScale = cfg.scale();
+            FlechePaquets.scale(p, a.item, cfg.scale(), s.glide());
         }
         if (a.shownGlide != s.glide()) {
             a.shownGlide = s.glide();
@@ -472,8 +592,9 @@ final class Fleche implements Listener {
 
     /** Texte au-dessus de la flèche, refait seulement quand la cible, la distance ou le signe de hauteur change. */
     private String label(Arrow a, Step s, FlecheReglages r) {
-        double dy = s.target().place().getY() - s.y();
-        int mark = Math.abs(dy) >= r.markHeight() && Math.abs(dy) / s.distance() >= Math.sin(Math.toRadians(r.markSlope())) ? dy > 0 ? 1 : 2 : 0;
+        double dy = a.path.rise;
+        double far = Math.hypot(dy, a.path.riseRun);
+        int mark = Math.abs(dy) >= r.markHeight() && Math.abs(dy) / Math.max(0.01, far) >= Math.sin(Math.toRadians(r.markSlope())) ? dy > 0 ? 1 : 2 : 0;
         long key = Math.round(s.distance()) * 4 + mark;
         if (a.shown && key == a.labelKey && a.labelTarget == s.target()) {
             return a.lastLabel;
@@ -494,6 +615,7 @@ final class Fleche implements Listener {
             FlechePaquets.destroy(a.player, a.item, a.label);
         }
         a.placed = false;
+        a.pathPoints = null;
         a.follow.reset();
     }
 }

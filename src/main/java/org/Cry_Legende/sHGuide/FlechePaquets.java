@@ -100,6 +100,14 @@ final class FlechePaquets {
                 new EntityData<>(ROTATION, EntityDataTypes.QUATERNION, quaternion(turn)))));
     }
 
+    /** Taille, atteinte en « ticks » ; 0 = effacée. */
+    static void scale(Player p, int id, float scale, int ticks) {
+        send(p, new WrapperPlayServerEntityMetadata(id, List.of(
+                new EntityData<>(DELAY, EntityDataTypes.INT, 0),
+                new EntityData<>(TURN_TICKS, EntityDataTypes.INT, ticks),
+                new EntityData<>(SCALE, EntityDataTypes.VECTOR3F, new Vector3f(scale, scale, scale)))));
+    }
+
     static void text(Player p, int id, Component text) {
         send(p, new WrapperPlayServerEntityMetadata(id, List.of(new EntityData<>(TEXT, EntityDataTypes.ADV_COMPONENT, text))));
     }

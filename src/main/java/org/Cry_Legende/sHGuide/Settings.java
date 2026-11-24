@@ -242,7 +242,7 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
             if (s == null || s.getString("cible", "").isBlank()) {
                 throw new IllegalArgumentException("fleches." + id + ".cible : « monde x y z » ou un placeholder attendu");
             }
-            out.add(new Fleche.Source(id, s.getString("cible"), s.getString("nom", ""), s.getString("texte", ""),
+            out.add(new Fleche.Source(id, s.getString("cible"), s.getString("nom", ""), s.getString("texte", ""), s.getString("fin", ""),
                     s.getDouble("arrive", -1), s.getDouble("distance-min", -1)));
         }
         return List.copyOf(out);

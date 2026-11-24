@@ -462,28 +462,50 @@ sons:
 #     texte-au-dessus: 0.35
 #     # Mouvement et envois ; chaque clé absente garde la valeur écrite ici.
 #     reglages:
-#       # Durée des glissements du client et avance maximale sur le joueur (son ping est ajouté), en ticks.
+#       # Durée des glissements du client, avance sur le joueur (le glissement et son ping y sont ajoutés) et avance la plus
+#       # grande, en ticks.
 #       glissement-ticks: 3
-#       avance-max-ticks: 5
-#       # La flèche reste au niveau du dernier sol tant que le joueur n'est pas plus haut ou plus bas que ces écarts.
-#       saut-haut: 1.6
+#       avance-ticks: 0.75
+#       avance-max-ticks: 8
+#       # La flèche reste au niveau du dernier sol tant que le joueur n'est pas plus haut ou plus bas que ces écarts (un saut
+#       # normal ne la bouge pas). Au-delà (double saut, chute), elle vole avec lui, à « vol-ecart » blocs au plus de sa
+#       # hauteur au bout de « vol-ticks ».
+#       saut-haut: 1.3
 #       saut-bas: 1.2
+#       vol-ticks: 10
+#       vol-ecart: 0.4
 #       # Déplacement en un tick pris pour une téléportation, et distance à plat sous laquelle le cap est gardé.
 #       teleportation: 2.5
 #       cap-min: 1
-#       # Part du chemin faite à chaque tick (1 = tout de suite) : hauteur, vitesse, cap, éloignement.
+#       # Part du chemin faite à chaque tick (1 = tout de suite) : hauteur (au sol, puis en vol), position et vitesse
+#       # estimées du joueur, cap, éloignement. Un écart de plus de « ecart-net » blocs est pris tout de suite.
 #       douceur-hauteur: 0.35
-#       douceur-vitesse: 0.4
+#       douceur-hauteur-vol: 0.7
+#       douceur-position: 0.8
+#       douceur-vitesse: 0.6
+#       ecart-net: 0.4
 #       douceur-cap: 0.4
 #       douceur-place: 0.3
+#       # Cible en plusieurs points (chemin) : la flèche montre le prochain changement de direction, et au moins
+#       # « chemin-devant » blocs plus loin sur le chemin, plus « chemin-vitesse » fois la vitesse (blocs par tick). Sa place
+#       # sur le chemin recule ou avance d'un coup de ces blocs au plus.
+#       chemin-devant: 3
+#       chemin-vitesse: 6
+#       chemin-arriere: 3
+#       chemin-avance: 14
+#       # La flèche s'éloigne du joueur quand il va vite vers elle (fois la vitesse, en blocs), de « max » blocs au plus.
+#       devant-vitesse: 1.5
+#       devant-vitesse-max: 1.5
 #       # Écart gardé avec un mur, éloignement minimal, et rehaussement devant une marche.
 #       mur-ecart: 0.3
 #       mur-min: 0.8
 #       marche-releve: 0.8
 #       hauteur-yeux: 1.62
-#       # Le signe plus haut / plus bas s'affiche à partir de cet écart (blocs) et de cette pente (degrés).
+#       # Le signe plus haut / plus bas s'affiche à partir de cet écart (blocs) et de cette pente (degrés) ; sur un chemin,
+#       # jusqu'à « signe-devant » blocs plus loin.
 #       signe-hauteur: 6
 #       signe-pente: 20
+#       signe-devant: 16
 #       # Pente jusqu'à laquelle la flèche reste à plat, et à partir de laquelle elle est verticale.
 #       plat-jusqua: 40
 #       vertical-des: 60
@@ -501,15 +523,20 @@ sons:
 #       # Murs sondés au plus tous les « mur-ticks » ticks, quand le joueur a bougé de « mur-deplacement » blocs.
 #       mur-ticks: 4
 #       mur-deplacement: 0.25
+#       # Quand la cible disparaît avec un texte « fin » : durée de ce texte, et de l'effacement de la flèche.
+#       fin-ticks: 60
+#       fin-disparition-ticks: 8
 
 # Autres cibles de la flèche (même style que accueil.fleche, qui doit être active) : la première cible lisible passe avant
-# celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne, vide = pas de flèche. « texte » remplace
-# « nom » et la distance ({distance} et {hauteur} y sont remplis). « arrive » et « distance-min » : ceux de accueil.fleche
-# sinon.
+# celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne, vide = pas de flèche ; plusieurs points
+# (« monde x y z x y z … ») = un chemin à suivre, du joueur vers l'avant. « texte » remplace « nom » et la distance
+# ({distance} et {hauteur} y sont remplis). « fin » : texte laissé quand la cible disparaît, pendant que la flèche s'efface
+# (vide = elle part d'un coup). « arrive » et « distance-min » : ceux de accueil.fleche sinon.
 # fleches:
 #   exemple:
 #     cible: "%un_placeholder_de_position%"
 #     nom: "%un_placeholder_de_nom%"
 #     texte: ""
+#     fin: ""
 #     arrive: 4
 #     distance-min: 8
