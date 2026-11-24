@@ -42,11 +42,6 @@ import java.util.logging.Level;
  */
 final class Fleche implements Listener {
 
-    /** Tour de cap qui fait sonder les murs à nouveau, en radians. */
-    private static final double PROBE_TURN = 0.17;
-    /** Un joueur immobile fait sonder les murs au plus tard après ce nombre de ticks (porte ouverte, bloc posé). */
-    private static final int PROBE_AT_LEAST = 40;
-
     /**
      * Cible en plus du tutoriel : « cible » (monde x y z, ou un chemin monde x y z x y z …), « nom » et « texte » avec
      * placeholders ; un texte remplace le nom et la distance. « fin » : texte laissé quand la cible disparaît. « arrive » et
@@ -453,8 +448,8 @@ final class Fleche implements Listener {
             double dy = y - a.probedY;
             double dz = z - a.probedZ;
             boolean changed = dx * dx + dy * dy + dz * dz > r.wallMove() * r.wallMove()
-                    || Math.abs(Math.IEEEremainder(heading - a.probedHeading, 2 * Math.PI)) > PROBE_TURN;
-            if (changed ? since < r.wallTicks() : since < PROBE_AT_LEAST) {
+                    || Math.abs(Math.IEEEremainder(heading - a.probedHeading, 2 * Math.PI)) > Math.toRadians(r.wallTurn());
+            if (changed ? since < r.wallTicks() : since < r.wallAtMost()) {
                 return;
             }
         }
@@ -494,7 +489,7 @@ final class Fleche implements Listener {
         boolean fresh = !a.shown || !a.follow.ready();
         Suivi f = a.follow;
         if (s.impulse() != null) {
-            f.impulse(s.impulse()[0], s.impulse()[1], s.impulse()[2]);
+            f.impulse(s.impulse()[0], s.impulse()[1], s.impulse()[2], r);
         }
         f.follow(s.x(), s.y(), s.z(), s.standing(), s.lead(), s.ticks(), r);
         if (s.target() != null) {

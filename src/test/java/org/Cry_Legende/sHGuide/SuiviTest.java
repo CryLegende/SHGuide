@@ -116,7 +116,7 @@ class SuiviTest {
         for (int i = 0; i + 3 < p.length; i++) {
             // Le serveur envoie l'élan, et ne voit le joueur bouger que 2 ticks plus tard
             if (told && i == 28) {
-                s.impulse(1, 0.8, 0);
+                s.impulse(1, 0.8, 0, R);
             }
             s.follow(p[i], 64, 0, i < 28 || i > 55, 3, R);
             if (i > 5) {
@@ -136,7 +136,7 @@ class SuiviTest {
     void unPetitCoupNEstPasUnElan() {
         Suivi s = new Suivi();
         s.follow(0, 64, 0, true, 3, R);
-        s.impulse(0, 0.4, 0);
+        s.impulse(0, 0.4, 0, R);
         s.follow(0, 64, 0, true, 3, R);
         assertEquals(0, s.x, 1e-9);
     }

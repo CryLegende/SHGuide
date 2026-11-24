@@ -520,9 +520,14 @@ sons:
 #       lecture-active-ticks: 4
 #       # Flèches avancées par tick au plus : au-delà, chacune attend son tour et glisse plus longtemps.
 #       par-tick-max: 60
-#       # Murs sondés au plus tous les « mur-ticks » ticks, quand le joueur a bougé de « mur-deplacement » blocs.
+#       # Murs sondés au plus tous les « mur-ticks » ticks, quand le joueur a bougé de « mur-deplacement » blocs ou que la
+#       # flèche a tourné de « mur-degres » ; immobile, tous les « mur-au-plus-ticks » (porte ouverte, bloc posé).
 #       mur-ticks: 4
 #       mur-deplacement: 0.25
+#       mur-degres: 10
+#       mur-au-plus-ticks: 40
+#       # Élan le plus faible compté dès son départ, en blocs par tick (double saut, plaque, coup).
+#       elan-min: 0.3
 #       # Quand la cible disparaît avec un texte « fin » : durée de ce texte, et de l'effacement de la flèche.
 #       fin-ticks: 60
 #       fin-disparition-ticks: 8

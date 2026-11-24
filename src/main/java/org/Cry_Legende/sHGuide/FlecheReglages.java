@@ -8,7 +8,7 @@ record FlecheReglages(int glide, double lead, double leadMax, double jumpAbove, 
                       double pathAhead, double pathSpeed, double pathBack, double pathWindow, double speedAhead, double speedAheadMax,
                       double wallGap, double wallMin, double stepLift, double eyes,
                       double markHeight, double markSlope, double markAhead, double flatUntil, double uprightFrom, double fullTilt, double endOn,
-                      double sendMove, double sendTurn, int readTicks, int readActiveTicks, int perTick, int wallTicks, double wallMove,
+                      double sendMove, double sendTurn, int readTicks, int readActiveTicks, int perTick, int wallTicks, double wallMove, double wallTurn, int wallAtMost, double impulse,
                       int endTicks, int endFade) {
 
     static final FlecheReglages DEFAULT = read(null);
@@ -26,7 +26,8 @@ record FlecheReglages(int glide, double lead, double leadMax, double jumpAbove, 
                 at(c, "plat-jusqua", 40, 0, 89), at(c, "vertical-des", 60, 1, 90), at(c, "face-inclinaison", 30, 1, 90),
                 at(c, "lecture-angle", 42, 0, 80), at(c, "envoi-blocs", 0.01, 0, 1), at(c, "envoi-degres", 1, 0, 45),
                 (int) at(c, "lecture-ticks", 10, 1, 200), (int) at(c, "lecture-active-ticks", 4, 1, 200),
-                (int) at(c, "par-tick-max", 60, 1, 1000), (int) at(c, "mur-ticks", 4, 1, 40), at(c, "mur-deplacement", 0.25, 0, 5),
+                (int) at(c, "par-tick-max", 60, 1, 1000), (int) at(c, "mur-ticks", 4, 1, 40), at(c, "mur-deplacement", 0.25, 0, 5), at(c, "mur-degres", 10, 1, 180),
+                (int) at(c, "mur-au-plus-ticks", 40, 1, 1200), at(c, "elan-min", 0.3, 0, 5),
                 (int) at(c, "fin-ticks", 60, 0, 1200), (int) at(c, "fin-disparition-ticks", 8, 0, 100));
     }
 

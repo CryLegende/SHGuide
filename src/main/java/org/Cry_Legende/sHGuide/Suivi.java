@@ -12,8 +12,6 @@ final class Suivi {
     /** Freinage de l'air du jeu, à plat, et vitesse à partir de laquelle il compte. */
     private static final double DRAG = 0.91;
     private static final double FAST = 0.4;
-    /** Élan plus faible : le mouvement mesuré suffit. */
-    private static final double IMPULSE = 0.3;
 
     double x;
     double y;
@@ -73,9 +71,9 @@ final class Suivi {
         return (impulse ? ix : vx) * Math.cos(heading) + (impulse ? iz : vz) * Math.sin(heading);
     }
 
-    /** Élan que le serveur vient d'envoyer au joueur. */
-    void impulse(double vx, double vy, double vz) {
-        if (!ready || Math.hypot(vx - this.vx, vz - this.vz) < IMPULSE) {
+    /** Élan que le serveur vient d'envoyer au joueur ; un élan faible n'est pas compté, le mouvement mesuré suffit. */
+    void impulse(double vx, double vy, double vz, FlecheReglages r) {
+        if (!ready || Math.hypot(vx - this.vx, vz - this.vz) < r.impulse()) {
             return;
         }
         impulse = true;
