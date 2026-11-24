@@ -44,7 +44,7 @@ Utilisé sur : **Opale**.
 
 ## Dépendances
 
-Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée au démarrage).
+Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée au démarrage). Optionnelle : `packetevents` (la flèche, envoyée en paquets ; sans lui, pas de flèche). Les placeholders des cibles (`fleches`) sont lus hors du fil principal.
 
 ## Commandes
 
