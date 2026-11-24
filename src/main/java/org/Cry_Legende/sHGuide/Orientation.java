@@ -5,9 +5,9 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * Orientation de la flèche. À plat vers la cible tant que la pente est faible (le texte donne le sens de la hauteur) ;
- * quand la cible est surtout au-dessus ou au-dessous du joueur, elle se redresse ou plonge, sa face tournée vers les
- * yeux. Dans l'axe du regard, elle est écartée juste assez pour ne jamais être vue de bout.
+ * Orientation de la flèche, posée entre le joueur et sa cible. Tant que la pente est faible, elle pointe devant, relevée
+ * juste assez pour être lue par le joueur qui lui fait face (le texte donne le sens de la hauteur) ; quand la cible est
+ * surtout au-dessus ou au-dessous du joueur, elle se redresse ou plonge, sa face tournée vers les yeux.
  */
 final class Orientation {
 
@@ -16,8 +16,8 @@ final class Orientation {
     private static final double UPRIGHT_FROM = 60;
     /** Inclinaison (en degrés) à partir de laquelle la face de la flèche regarde entièrement les yeux du joueur. */
     private static final float FULL_TILT = 30f;
-    /** Angle minimal (en degrés) entre la flèche et l'axe du regard : celui d'une flèche à plat droit devant. */
-    private static final double END_ON = 27;
+    /** Angle minimal (en degrés) entre la flèche et la ligne qui la joint aux yeux : assez pour lire sa pointe. */
+    private static final double END_ON = 42;
     /** Pointe du dessin (en diagonale) et normale du dessin, telles que le client les pose sans transformation. */
     static final Vector3f TIP = new Vector3f(-1, 1, 0).normalize();
     static final Vector3f FACE = new Vector3f(0, 0, -1);
@@ -48,7 +48,7 @@ final class Orientation {
         return new Vector3f((float) (d.x * c), (float) Math.sin(shown), (float) (d.z * c));
     }
 
-    /** Écarte la direction de l'axe du regard (dans les deux sens) quand elle en est trop proche. */
+    /** Écarte la direction de la ligne des yeux (dans les deux sens) quand elle en est trop proche. */
     private static Vector3f readable(Vector3f d, Vector3f toEyes) {
         float along = d.dot(toEyes);
         double limit = Math.cos(Math.toRadians(END_ON));

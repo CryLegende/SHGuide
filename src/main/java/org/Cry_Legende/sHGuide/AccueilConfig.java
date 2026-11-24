@@ -42,7 +42,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
     record Timed(long tick, String command) {
     }
 
-    record Arrow(boolean enabled, String item, float scale, double ahead, double below, double minDistance,
+    record Arrow(boolean enabled, String item, float scale, double ahead, double height, double minDistance,
                  double arrivedDistance, int glowColor, float yawOffset, float labelScale, double labelAbove) {
     }
 
@@ -51,7 +51,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
             new Tomorrow(3, "", List.of(), "", List.of(), 60, 15, BossBar.Color.BLUE),
             new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), 2),
             null,
-            new Arrow(false, "SPECTRAL_ARROW", 0.8f, 1.6, 0.85, 6, 4, -1, 0, 0.6f, 0.35));
+            new Arrow(false, "SPECTRAL_ARROW", 0.8f, 2.2, 0.7, 6, 4, -1, 0, 0.6f, 0.35));
 
     static AccueilConfig read(ConfigurationSection c) {
         if (c == null || !c.getBoolean("actif", true)) {
@@ -79,8 +79,8 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
                 timed(a.getStringList("commandes")));
         ConfigurationSection f = c.getConfigurationSection("fleche");
         Arrow arrow = f == null ? DISABLED.arrow() : new Arrow(f.getBoolean("actif", true),
-                f.getString("objet", "SPECTRAL_ARROW"), (float) f.getDouble("taille", 0.8), f.getDouble("devant", 1.6),
-                f.getDouble("sous-les-yeux", 0.85), f.getDouble("distance-min", 6), f.getDouble("arrive", 4),
+                f.getString("objet", "SPECTRAL_ARROW"), (float) f.getDouble("taille", 0.8), f.getDouble("devant", 2.2),
+                f.getDouble("hauteur", 0.7), f.getDouble("distance-min", 6), f.getDouble("arrive", 4),
                 rgb(f.getString("lueur", "")), (float) f.getDouble("rotation-en-plus", 0),
                 (float) f.getDouble("taille-texte", 0.6), f.getDouble("texte-au-dessus", 0.35));
         return new AccueilConfig(true, stay, tomorrow, tutorial, arrival, arrow);

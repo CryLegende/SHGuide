@@ -25,22 +25,29 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Flèche vers une cible : un item display devant le joueur, sous ses yeux, tourné vers la cible (haut et bas compris),
- * et la distance au-dessus. Les deux entités ne sont montrées qu'à ce joueur, ne sont jamais sauvegardées et glissent
- * d'une position à l'autre (interpolation du client), mises à jour à chaque tick seulement si le joueur a bougé.
+ * Flèche vers une cible : un item display posé autour du joueur, du côté de la cible, à hauteur fixe au-dessus du sol, et
+ * la distance au-dessus. Tourner la tête, sauter ou se baisser ne la bouge pas. Les deux entités ne sont montrées qu'à ce
+ * joueur, ne sont jamais sauvegardées et glissent d'une position à l'autre (interpolation du client) ; rien n'est envoyé
+ * tant que la flèche ne change pas.
  *
  * Une seule flèche par joueur : une cible de la section « fleches » passe avant l'étape du tutoriel.
  */
 final class Fleche {
 
-    /** Ticks d'avance donnés à la position (le client voit le joueur avant le serveur). */
-    private static final double PREDICT = 2.0;
-    /** Écart gardé avec un mur, et distance minimale aux yeux quand il est tout près. */
-    private static final double WALL_GAP = 0.25;
-    private static final double WALL_MIN = 0.6;
+    /** Durée des glissements du client, en ticks. */
+    private static final int GLIDE = 3;
+    /** Hauteur des yeux debout : la flèche n'est pas tournée autrement quand le joueur se baisse. */
+    private static final double EYES = 1.62;
+    /** Écart gardé avec un mur, éloignement minimal quand il est tout près, rehaussement devant une marche. */
+    private static final double WALL_GAP = 0.3;
+    private static final double WALL_MIN = 0.8;
+    private static final double STEP_LIFT = 0.8;
     /** Le sens de la hauteur s'affiche à partir de cet écart (blocs) et de cette pente (sinus de 20°). */
     private static final double HEIGHT_MIN = 6;
     private static final double SLOPE_MIN = 0.34;
+    /** Plus petits changements envoyés : 1 cm, et environ 1 degré. */
+    private static final double MOVE_MIN = 0.0001;
+    private static final float TURN_MIN = 0.99996f;
 
     /** Cible en plus du tutoriel : « cible » (monde x y z) et « nom », avec placeholders. */
     record Source(String id, String target, String name) {
@@ -50,12 +57,13 @@ final class Fleche {
     }
 
     private static final class Arrow {
+        final Suivi follow = new Suivi();
         Target tutorial;
         Target other;
         ItemDisplay item;
         TextDisplay label;
-        Location last;
-        float lastYaw = Float.NaN;
+        Location sent;
+        Quaternionf sentTurn;
         String lastLabel = "";
 
         Target target() {
@@ -82,7 +90,6 @@ final class Fleche {
         if (a == null) {
             return;
         }
-        Target before = a.target();
         if (other) {
             a.other = t;
         } else {
@@ -92,8 +99,6 @@ final class Fleche {
         if (now == null) {
             arrows.remove(p.getUniqueId());
             despawn(a);
-        } else if (!now.equals(before)) {
-            a.last = null;
         }
     }
 
@@ -171,62 +176,72 @@ final class Fleche {
                 despawn(a);
                 continue;
             }
-            if (a.item != null && a.item.isValid() && a.last != null && a.last.getWorld() == pl.getWorld()
-                    && a.last.distanceSquared(pl) < 0.0004 && Math.abs(a.lastYaw - pl.getYaw()) < 0.5f) {
-                continue;
-            }
-            double vx = 0, vy = 0, vz = 0;
-            if (a.last != null && a.last.getWorld() == pl.getWorld()) {
-                vx = pl.getX() - a.last.getX();
-                vy = pl.getY() - a.last.getY();
-                vz = pl.getZ() - a.last.getZ();
-                if (vx * vx + vy * vy + vz * vz > 4) {
-                    vx = vy = vz = 0;
-                }
-            }
-            a.last = pl.clone();
-            a.lastYaw = pl.getYaw();
-            Vector offset = offset(p, pl, cfg);
-            Location pos = new Location(pl.getWorld(), pl.getX() + offset.getX() + vx * PREDICT,
-                    pl.getY() + p.getEyeHeight() + offset.getY() + vy * PREDICT, pl.getZ() + offset.getZ() + vz * PREDICT);
-            Vector3f direction = new Vector3f((float) (target.place().getX() - pos.getX()),
-                    (float) (target.place().getY() - pos.getY()), (float) (target.place().getZ() - pos.getZ()));
-            if (direction.lengthSquared() < 1e-4f) {
-                direction.set(0, 0, 1);
-            }
-            Vector3f toEyes = new Vector3f((float) -offset.getX(), (float) -offset.getY(), (float) -offset.getZ());
-            Quaternionf turn = Orientation.of(direction, toEyes, cfg.yawOffset());
-            if (a.item == null || !a.item.isValid()) {
-                spawn(p, a, pos, turn, cfg);
-            } else {
-                a.item.teleport(pos);
-                a.item.setInterpolationDelay(0);
-                a.item.setTransformation(transformation(turn, cfg));
-                a.label.teleport(pos.clone().add(0, cfg.labelAbove(), 0));
-            }
-            String label = label(target, pl, dist);
-            if (!label.equals(a.lastLabel)) {
-                a.lastLabel = label;
-                a.label.text(Messages.chat(label));
-            }
+            boolean fresh = a.item == null || !a.item.isValid() || !a.follow.ready();
+            boolean standing = p.isOnGround() || p.isFlying() || p.isClimbing() || p.isInWater() || p.isGliding();
+            a.follow.follow(pl.getX(), pl.getY(), pl.getZ(), standing, lead(p));
+            a.follow.turn(target.place().getX(), target.place().getZ());
+            place(pl.getWorld(), a.follow, cfg, fresh);
+            draw(p, a, pl, target, dist, cfg);
         }
     }
 
-    /** Place de la flèche par rapport aux yeux : devant et plus bas, ramenée vers le joueur quand un mur la cacherait. */
-    private static Vector offset(Player p, Location pl, AccueilConfig.Arrow cfg) {
-        double yaw = Math.toRadians(pl.getYaw());
-        Vector offset = new Vector(-Math.sin(yaw) * cfg.ahead(), -cfg.below(), Math.cos(yaw) * cfg.ahead());
-        double length = offset.length();
-        if (length < WALL_MIN) {
-            return offset;
+    /** Ticks d'avance : le temps que le mouvement arrive au serveur et que la flèche revienne au client. */
+    private static double lead(Player p) {
+        return Math.min(5, GLIDE - 1 + p.getPing() / 50.0);
+    }
+
+    /** Un mur entre le joueur et la flèche la rapproche, une marche la relève. */
+    private static void place(World world, Suivi f, AccueilConfig.Arrow cfg, boolean now) {
+        Vector out = new Vector(Math.cos(f.heading), 0, Math.sin(f.heading));
+        double low = free(world, f, cfg.height(), out, cfg.ahead());
+        if (low >= cfg.ahead()) {
+            f.place(cfg.ahead(), 0, now);
+            return;
         }
-        Location eyes = pl.clone().add(0, p.getEyeHeight(), 0);
-        RayTraceResult hit = pl.getWorld().rayTraceBlocks(eyes, offset, length + WALL_GAP, FluidCollisionMode.NEVER, true);
-        if (hit == null) {
-            return offset;
+        double high = free(world, f, cfg.height() + STEP_LIFT, out, cfg.ahead());
+        if (high > low) {
+            f.place(Math.max(WALL_MIN, high), STEP_LIFT, now);
+        } else {
+            f.place(Math.max(WALL_MIN, low), 0, now);
         }
-        double free = hit.getHitPosition().distance(eyes.toVector()) - WALL_GAP;
-        return offset.multiply(Math.max(WALL_MIN, Math.min(length, free)) / length);
+    }
+
+    private static double free(World world, Suivi f, double height, Vector out, double ahead) {
+        RayTraceResult hit = world.rayTraceBlocks(new Location(world, f.x, f.y + height, f.z), out, ahead + WALL_GAP,
+                FluidCollisionMode.NEVER, true);
+        return hit == null ? ahead : Math.hypot(hit.getHitPosition().getX() - f.x, hit.getHitPosition().getZ() - f.z) - WALL_GAP;
+    }
+
+    private void draw(Player p, Arrow a, Location pl, Target target, double dist, AccueilConfig.Arrow cfg) {
+        Suivi f = a.follow;
+        double height = cfg.height() + f.lift;
+        double ox = Math.cos(f.heading) * f.radius;
+        double oz = Math.sin(f.heading) * f.radius;
+        Location pos = new Location(pl.getWorld(), f.x + ox, f.y + height, f.z + oz);
+        double flat = Math.max(0.01, Math.hypot(target.place().getX() - f.x, target.place().getZ() - f.z));
+        Vector3f direction = new Vector3f((float) (Math.cos(f.heading) * flat),
+                (float) (target.place().getY() - pos.getY()), (float) (Math.sin(f.heading) * flat));
+        Vector3f toEyes = new Vector3f((float) -ox, (float) (EYES - height), (float) -oz);
+        Quaternionf turn = Orientation.of(direction, toEyes, cfg.yawOffset());
+        if (a.item == null || !a.item.isValid()) {
+            spawn(p, a, pos, turn, cfg);
+        } else {
+            if (a.sent.distanceSquared(pos) > MOVE_MIN) {
+                a.sent = pos;
+                a.item.teleport(pos);
+                a.label.teleport(pos.clone().add(0, cfg.labelAbove(), 0));
+            }
+            if (Math.abs(a.sentTurn.dot(turn)) < TURN_MIN) {
+                a.sentTurn = turn;
+                a.item.setInterpolationDelay(0);
+                a.item.setTransformation(transformation(turn, cfg));
+            }
+        }
+        String label = label(target, pl, dist);
+        if (!label.equals(a.lastLabel)) {
+            a.lastLabel = label;
+            a.label.text(Messages.chat(label));
+        }
     }
 
     private String label(Target target, Location pl, double dist) {
@@ -244,11 +259,9 @@ final class Fleche {
     }
 
     private void spawn(Player p, Arrow a, Location pos, Quaternionf turn, AccueilConfig.Arrow cfg) {
-        Location last = a.last;
-        float lastYaw = a.lastYaw;
-        despawn(a);
-        a.last = last;
-        a.lastYaw = lastYaw;
+        remove(a);
+        a.sent = pos;
+        a.sentTurn = turn;
         Material mat = Material.matchMaterial(cfg.item());
         ItemStack stack = new ItemStack(mat == null || !mat.isItem() ? Material.SPECTRAL_ARROW : mat);
         a.item = pos.getWorld().spawn(pos, ItemDisplay.class, e -> {
@@ -258,8 +271,8 @@ final class Fleche {
             e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
             e.setBillboard(Display.Billboard.FIXED);
             e.setTransformation(transformation(turn, cfg));
-            e.setTeleportDuration(2);
-            e.setInterpolationDuration(2);
+            e.setTeleportDuration(GLIDE);
+            e.setInterpolationDuration(GLIDE);
             e.setBrightness(new Display.Brightness(15, 15));
             e.setShadowRadius(0);
             if (cfg.glowColor() >= 0) {
@@ -273,7 +286,7 @@ final class Fleche {
             e.setBillboard(Display.Billboard.CENTER);
             e.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
             e.setShadowed(true);
-            e.setTeleportDuration(2);
+            e.setTeleportDuration(GLIDE);
             e.setBrightness(new Display.Brightness(15, 15));
             e.setTransformation(new Transformation(new Vector3f(), new Quaternionf(),
                     new Vector3f(cfg.labelScale(), cfg.labelScale(), cfg.labelScale()), new Quaternionf()));
@@ -283,6 +296,11 @@ final class Fleche {
     }
 
     private static void despawn(Arrow a) {
+        remove(a);
+        a.follow.reset();
+    }
+
+    private static void remove(Arrow a) {
         if (a.item != null) {
             a.item.remove();
             a.item = null;
@@ -291,8 +309,6 @@ final class Fleche {
             a.label.remove();
             a.label = null;
         }
-        a.last = null;
-        a.lastYaw = Float.NaN;
         a.lastLabel = "";
     }
 }

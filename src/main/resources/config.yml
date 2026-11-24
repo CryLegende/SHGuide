@@ -443,14 +443,15 @@ sons:
 #     titre-disparition-ticks: 25
 #     son: "minecraft:ui.toast.challenge_complete"
 #     commandes: []
-#   # Flèche vers l'étape : item devant le joueur, sous ses yeux, qui pointe vers la cible (haut et bas compris), et la
-#   # distance au-dessus. Montrée à lui seul. « rotation-en-plus » : degrés ajoutés au dessin dans son plan.
+#   # Flèche vers l'étape : item à « devant » blocs du joueur, du côté de la cible, « hauteur » blocs au-dessus du sol, et
+#   # la distance au-dessus. Montrée à lui seul. Tourner la tête, sauter ou se baisser ne la bouge pas.
+#   # « rotation-en-plus » : degrés ajoutés au dessin dans son plan.
 #   fleche:
 #     actif: true
 #     objet: SPECTRAL_ARROW
 #     taille: 0.7
-#     devant: 1.7
-#     sous-les-yeux: 0.9
+#     devant: 2.2
+#     hauteur: 0.7
 #     distance-min: 8
 #     arrive: 4
 #     lueur: ""
