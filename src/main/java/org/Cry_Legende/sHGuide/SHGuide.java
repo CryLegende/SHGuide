@@ -84,7 +84,7 @@ public final class SHGuide extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimer(this, accueil::tick, 20L, 20L);
         Bukkit.getScheduler().runTaskTimer(this, annonceBarre::tick, 20L, 20L);
         Bukkit.getScheduler().runTaskTimer(this, fleche::tick, 1L, 1L);
-        Bukkit.getScheduler().runTaskTimer(this, fleche::readSources, 20L, 10L);
+        Bukkit.getScheduler().runTaskTimer(this, fleche::readSources, 20L, 1L);
         for (Player p : Bukkit.getOnlinePlayers()) {
             sessions.load(p);
         }

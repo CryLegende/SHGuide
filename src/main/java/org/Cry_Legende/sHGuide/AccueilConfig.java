@@ -43,7 +43,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
     }
 
     record Arrow(boolean enabled, String item, float scale, double ahead, double height, double minDistance,
-                 double arrivedDistance, int glowColor, float yawOffset, float labelScale, double labelAbove) {
+                 double arrivedDistance, int glowColor, float yawOffset, float labelScale, double labelAbove, FlecheReglages tuning) {
     }
 
     static final AccueilConfig DISABLED = new AccueilConfig(false,
@@ -51,7 +51,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
             new Tomorrow(3, "", List.of(), "", List.of(), 60, 15, BossBar.Color.BLUE),
             new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), 2),
             null,
-            new Arrow(false, "SPECTRAL_ARROW", 0.8f, 2.2, 0.7, 6, 4, -1, 0, 0.6f, 0.35));
+            new Arrow(false, "SPECTRAL_ARROW", 0.8f, 2.2, 0.7, 6, 4, -1, 0, 0.6f, 0.35, FlecheReglages.DEFAULT));
 
     static AccueilConfig read(ConfigurationSection c) {
         if (c == null || !c.getBoolean("actif", true)) {
@@ -82,7 +82,8 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
                 f.getString("objet", "SPECTRAL_ARROW"), (float) f.getDouble("taille", 0.8), f.getDouble("devant", 2.2),
                 f.getDouble("hauteur", 0.7), f.getDouble("distance-min", 6), f.getDouble("arrive", 4),
                 rgb(f.getString("lueur", "")), (float) f.getDouble("rotation-en-plus", 0),
-                (float) f.getDouble("taille-texte", 0.6), f.getDouble("texte-au-dessus", 0.35));
+                (float) f.getDouble("taille-texte", 0.6), f.getDouble("texte-au-dessus", 0.35),
+                FlecheReglages.read(f.getConfigurationSection("reglages")));
         return new AccueilConfig(true, stay, tomorrow, tutorial, arrival, arrow);
     }
 

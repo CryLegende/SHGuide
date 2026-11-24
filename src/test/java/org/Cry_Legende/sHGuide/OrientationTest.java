@@ -22,7 +22,7 @@ class OrientationTest {
     }
 
     private static Vector3f tip(double yaw, double pitch) {
-        return Orientation.of(dir(yaw, pitch), eyes(yaw), 0).transform(new Vector3f(Orientation.TIP));
+        return Orientation.of(dir(yaw, pitch), eyes(yaw), 0, FlecheReglages.DEFAULT).transform(new Vector3f(Orientation.TIP));
     }
 
     @Test
@@ -59,7 +59,7 @@ class OrientationTest {
         for (int yaw = 0; yaw < 360; yaw += 5) {
             Vector3f e = eyes(yaw).normalize();
             for (int pitch = -90; pitch <= 90; pitch++) {
-                Quaternionf q = Orientation.of(dir(yaw, pitch), eyes(yaw), 0);
+                Quaternionf q = Orientation.of(dir(yaw, pitch), eyes(yaw), 0, FlecheReglages.DEFAULT);
                 Vector3f t = q.transform(new Vector3f(Orientation.TIP));
                 Vector3f n = q.transform(new Vector3f(Orientation.FACE));
                 String where = " yaw " + yaw + " pente " + pitch;
@@ -72,8 +72,8 @@ class OrientationTest {
 
     @Test
     void tourneLeDessinDansSonPlan() {
-        Quaternionf plain = Orientation.of(dir(0, 0), eyes(0), 0);
-        Quaternionf turned = Orientation.of(dir(0, 0), eyes(0), 90);
+        Quaternionf plain = Orientation.of(dir(0, 0), eyes(0), 0, FlecheReglages.DEFAULT);
+        Quaternionf turned = Orientation.of(dir(0, 0), eyes(0), 90, FlecheReglages.DEFAULT);
         assertEquals(0, plain.transform(new Vector3f(Orientation.TIP)).dot(turned.transform(new Vector3f(Orientation.TIP))), 1e-3);
         assertEquals(1, plain.transform(new Vector3f(Orientation.FACE)).dot(turned.transform(new Vector3f(Orientation.FACE))), 1e-3);
     }

@@ -34,26 +34,14 @@ import java.util.UUID;
  */
 final class Fleche {
 
-    /** Durée des glissements du client, en ticks. */
-    private static final int GLIDE = 3;
-    /** Hauteur des yeux debout : la flèche n'est pas tournée autrement quand le joueur se baisse. */
-    private static final double EYES = 1.62;
-    /** Écart gardé avec un mur, éloignement minimal quand il est tout près, rehaussement devant une marche. */
-    private static final double WALL_GAP = 0.3;
-    private static final double WALL_MIN = 0.8;
-    private static final double STEP_LIFT = 0.8;
-    /** Le sens de la hauteur s'affiche à partir de cet écart (blocs) et de cette pente (sinus de 20°). */
-    private static final double HEIGHT_MIN = 6;
-    private static final double SLOPE_MIN = 0.34;
-    /** Plus petits changements envoyés : 1 cm, et environ 1 degré. */
-    private static final double MOVE_MIN = 0.0001;
-    private static final float TURN_MIN = 0.99996f;
-
-    /** Cible en plus du tutoriel : « cible » (monde x y z) et « nom », avec placeholders. */
-    record Source(String id, String target, String name) {
+    /**
+     * Cible en plus du tutoriel : « cible » (monde x y z), « nom » et « texte » avec placeholders ; un texte remplace le
+     * nom et la distance. « arrive » et « distance-min » valent ceux de accueil.fleche s'ils sont absents (-1).
+     */
+    record Source(String id, String target, String name, String text, double arrived, double minDistance) {
     }
 
-    private record Target(Location place, String name) {
+    private record Target(Location place, String name, String text, double arrived, double minDistance) {
     }
 
     private static final class Arrow {
@@ -73,6 +61,7 @@ final class Fleche {
 
     private final SHGuide plugin;
     private final Map<UUID, Arrow> arrows = new HashMap<>();
+    private int reads;
 
     Fleche(SHGuide plugin) {
         this.plugin = plugin;
@@ -81,7 +70,7 @@ final class Fleche {
     /** Cible de l'étape du tutoriel ; null l'enlève. */
     void setTarget(Player p, Location target, String name) {
         Target t = target == null || !plugin.settings().accueil().arrow().enabled() ? null
-                : new Target(target, name == null ? "" : name);
+                : new Target(target, name == null ? "" : name, "", -1, -1);
         set(p, t, false);
     }
 
@@ -116,15 +105,30 @@ final class Fleche {
         arrows.clear();
     }
 
-    /** Relit les cibles de la section « fleches » ; la première lisible est gardée. */
+    /**
+     * Relit les cibles de la section « fleches », la première lisible est gardée : souvent pour un joueur qui en a déjà
+     * une, plus rarement pour les autres.
+     */
     void readSources() {
-        List<Source> sources = plugin.settings().accueil().arrow().enabled() ? plugin.settings().arrowSources() : List.of();
+        AccueilConfig.Arrow cfg = plugin.settings().accueil().arrow();
+        List<Source> sources = cfg.enabled() ? plugin.settings().arrowSources() : List.of();
+        boolean all = reads % Math.max(1, cfg.tuning().readTicks()) == 0;
+        boolean active = reads % Math.max(1, cfg.tuning().readActiveTicks()) == 0;
+        reads++;
+        if (!all && !active) {
+            return;
+        }
         for (Player p : Bukkit.getOnlinePlayers()) {
+            Arrow a = arrows.get(p.getUniqueId());
+            if (!all && (a == null || a.other == null)) {
+                continue;
+            }
             Target found = null;
             for (Source s : sources) {
                 Location place = place(PlaceholderAPI.setPlaceholders(p, s.target()));
                 if (place != null) {
-                    found = new Target(place, PlaceholderAPI.setPlaceholders(p, s.name()));
+                    found = new Target(place, PlaceholderAPI.setPlaceholders(p, s.name()), PlaceholderAPI.setPlaceholders(p, s.text()),
+                            s.arrived(), s.minDistance());
                     break;
                 }
             }
@@ -172,48 +176,52 @@ final class Fleche {
                 continue;
             }
             double dist = pl.distance(target.place());
-            if (dist < cfg.arrivedDistance() || dist < cfg.minDistance() && a.item == null) {
+            if (dist < (target.arrived() >= 0 ? target.arrived() : cfg.arrivedDistance())
+                    || dist < (target.minDistance() >= 0 ? target.minDistance() : cfg.minDistance()) && a.item == null) {
                 despawn(a);
                 continue;
             }
             boolean fresh = a.item == null || !a.item.isValid() || !a.follow.ready();
             boolean standing = p.isOnGround() || p.isFlying() || p.isClimbing() || p.isInWater() || p.isGliding();
-            a.follow.follow(pl.getX(), pl.getY(), pl.getZ(), standing, lead(p));
-            a.follow.turn(target.place().getX(), target.place().getZ());
+            FlecheReglages tuning = cfg.tuning();
+            a.follow.follow(pl.getX(), pl.getY(), pl.getZ(), standing, lead(p, tuning), tuning);
+            a.follow.turn(target.place().getX(), target.place().getZ(), tuning);
             place(pl.getWorld(), a.follow, cfg, fresh);
             draw(p, a, pl, target, dist, cfg);
         }
     }
 
     /** Ticks d'avance : le temps que le mouvement arrive au serveur et que la flèche revienne au client. */
-    private static double lead(Player p) {
-        return Math.min(5, GLIDE - 1 + p.getPing() / 50.0);
+    private static double lead(Player p, FlecheReglages r) {
+        return Math.min(r.leadMax(), r.glide() - 1 + p.getPing() / 50.0);
     }
 
     /** Un mur entre le joueur et la flèche la rapproche, une marche la relève. */
     private static void place(World world, Suivi f, AccueilConfig.Arrow cfg, boolean now) {
         Vector out = new Vector(Math.cos(f.heading), 0, Math.sin(f.heading));
-        double low = free(world, f, cfg.height(), out, cfg.ahead());
+        FlecheReglages r = cfg.tuning();
+        double low = free(world, f, cfg.height(), out, cfg.ahead(), r);
         if (low >= cfg.ahead()) {
-            f.place(cfg.ahead(), 0, now);
+            f.place(cfg.ahead(), 0, now, r);
             return;
         }
-        double high = free(world, f, cfg.height() + STEP_LIFT, out, cfg.ahead());
+        double high = free(world, f, cfg.height() + r.stepLift(), out, cfg.ahead(), r);
         if (high > low) {
-            f.place(Math.max(WALL_MIN, high), STEP_LIFT, now);
+            f.place(Math.max(r.wallMin(), high), r.stepLift(), now, r);
         } else {
-            f.place(Math.max(WALL_MIN, low), 0, now);
+            f.place(Math.max(r.wallMin(), low), 0, now, r);
         }
     }
 
-    private static double free(World world, Suivi f, double height, Vector out, double ahead) {
-        RayTraceResult hit = world.rayTraceBlocks(new Location(world, f.x, f.y + height, f.z), out, ahead + WALL_GAP,
+    private static double free(World world, Suivi f, double height, Vector out, double ahead, FlecheReglages r) {
+        RayTraceResult hit = world.rayTraceBlocks(new Location(world, f.x, f.y + height, f.z), out, ahead + r.wallGap(),
                 FluidCollisionMode.NEVER, true);
-        return hit == null ? ahead : Math.hypot(hit.getHitPosition().getX() - f.x, hit.getHitPosition().getZ() - f.z) - WALL_GAP;
+        return hit == null ? ahead : Math.hypot(hit.getHitPosition().getX() - f.x, hit.getHitPosition().getZ() - f.z) - r.wallGap();
     }
 
     private void draw(Player p, Arrow a, Location pl, Target target, double dist, AccueilConfig.Arrow cfg) {
         Suivi f = a.follow;
+        FlecheReglages r = cfg.tuning();
         double height = cfg.height() + f.lift;
         double ox = Math.cos(f.heading) * f.radius;
         double oz = Math.sin(f.heading) * f.radius;
@@ -221,37 +229,38 @@ final class Fleche {
         double flat = Math.max(0.01, Math.hypot(target.place().getX() - f.x, target.place().getZ() - f.z));
         Vector3f direction = new Vector3f((float) (Math.cos(f.heading) * flat),
                 (float) (target.place().getY() - pos.getY()), (float) (Math.sin(f.heading) * flat));
-        Vector3f toEyes = new Vector3f((float) -ox, (float) (EYES - height), (float) -oz);
-        Quaternionf turn = Orientation.of(direction, toEyes, cfg.yawOffset());
+        Vector3f toEyes = new Vector3f((float) -ox, (float) (r.eyes() - height), (float) -oz);
+        Quaternionf turn = Orientation.of(direction, toEyes, cfg.yawOffset(), r);
         if (a.item == null || !a.item.isValid()) {
             spawn(p, a, pos, turn, cfg);
         } else {
-            if (a.sent.distanceSquared(pos) > MOVE_MIN) {
+            if (a.sent.distanceSquared(pos) > r.sendMove() * r.sendMove()) {
                 a.sent = pos;
                 a.item.teleport(pos);
                 a.label.teleport(pos.clone().add(0, cfg.labelAbove(), 0));
             }
-            if (Math.abs(a.sentTurn.dot(turn)) < TURN_MIN) {
+            if (Math.abs(a.sentTurn.dot(turn)) < Math.cos(Math.toRadians(r.sendTurn()) / 2)) {
                 a.sentTurn = turn;
                 a.item.setInterpolationDelay(0);
                 a.item.setTransformation(transformation(turn, cfg));
             }
         }
-        String label = label(target, pl, dist);
+        String label = label(target, pl, dist, r);
         if (!label.equals(a.lastLabel)) {
             a.lastLabel = label;
             a.label.text(Messages.chat(label));
         }
     }
 
-    private String label(Target target, Location pl, double dist) {
+    private String label(Target target, Location pl, double dist, FlecheReglages r) {
         double dy = target.place().getY() - pl.getY();
         String height = "";
-        if (Math.abs(dy) >= HEIGHT_MIN && Math.abs(dy) / dist >= SLOPE_MIN) {
+        if (Math.abs(dy) >= r.markHeight() && Math.abs(dy) / dist >= Math.sin(Math.toRadians(r.markSlope()))) {
             height = plugin.messages().text(dy > 0 ? "accueil.fleche-haut" : "accueil.fleche-bas");
         }
-        return plugin.messages().text("accueil.fleche", "nom", target.name(),
-                "distance", Integer.toString((int) Math.round(dist)), "hauteur", height);
+        String distance = Integer.toString((int) Math.round(dist));
+        return target.text().isEmpty() ? plugin.messages().text("accueil.fleche", "nom", target.name(), "distance", distance, "hauteur", height)
+                : Messages.replace(target.text(), "distance", distance, "hauteur", height);
     }
 
     private static Transformation transformation(Quaternionf turn, AccueilConfig.Arrow cfg) {
@@ -271,8 +280,8 @@ final class Fleche {
             e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
             e.setBillboard(Display.Billboard.FIXED);
             e.setTransformation(transformation(turn, cfg));
-            e.setTeleportDuration(GLIDE);
-            e.setInterpolationDuration(GLIDE);
+            e.setTeleportDuration(cfg.tuning().glide());
+            e.setInterpolationDuration(cfg.tuning().glide());
             e.setBrightness(new Display.Brightness(15, 15));
             e.setShadowRadius(0);
             if (cfg.glowColor() >= 0) {
@@ -286,7 +295,7 @@ final class Fleche {
             e.setBillboard(Display.Billboard.CENTER);
             e.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
             e.setShadowed(true);
-            e.setTeleportDuration(GLIDE);
+            e.setTeleportDuration(cfg.tuning().glide());
             e.setBrightness(new Display.Brightness(15, 15));
             e.setTransformation(new Transformation(new Vector3f(), new Quaternionf(),
                     new Vector3f(cfg.labelScale(), cfg.labelScale(), cfg.labelScale()), new Quaternionf()));

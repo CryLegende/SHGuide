@@ -7,14 +7,6 @@ package org.Cry_Legende.sHGuide;
  */
 final class Suivi {
 
-    /** Un saut monte de 1,25 bloc : la flèche ne suit qu'au-delà de ces écarts avec le dernier sol. */
-    private static final double ABOVE = 1.6;
-    private static final double BELOW = 1.2;
-    /** Déplacement (blocs en un tick) pris pour une téléportation. */
-    private static final double TELEPORT = 2.5;
-    /** En dessous de cette distance à plat, le cap n'a plus de sens : le dernier est gardé. */
-    private static final double HEADING_MIN = 2;
-
     double x;
     double y;
     double z;
@@ -42,34 +34,34 @@ final class Suivi {
     }
 
     /** Un tick : position du joueur, « standing » s'il est porté (sol, échelle, eau, vol), ticks d'avance à donner. */
-    void follow(double playerX, double playerY, double playerZ, boolean standing, double lead) {
+    void follow(double playerX, double playerY, double playerZ, boolean standing, double lead, FlecheReglages r) {
         double dx = playerX - px;
         double dz = playerZ - pz;
-        if (!ready || dx * dx + dz * dz > TELEPORT * TELEPORT || Math.abs(playerY - y) > 8) {
+        if (!ready || dx * dx + dz * dz > r.teleport() * r.teleport() || Math.abs(playerY - y) > 8) {
             ground = playerY;
             y = playerY;
             vx = vz = 0;
             ready = true;
         } else {
-            vx = vx * 0.6 + dx * 0.4;
-            vz = vz * 0.6 + dz * 0.4;
+            vx += (dx - vx) * r.easeSpeed();
+            vz += (dz - vz) * r.easeSpeed();
         }
         px = playerX;
         pz = playerZ;
         if (standing) {
             ground = playerY;
         }
-        double want = Math.max(playerY - ABOVE, Math.min(playerY + BELOW, ground));
-        y = approach(y, want, 0.35);
+        double want = Math.max(playerY - r.jumpAbove(), Math.min(playerY + r.jumpBelow(), ground));
+        y = approach(y, want, r.easeHeight());
         x = playerX + vx * lead;
         z = playerZ + vz * lead;
     }
 
     /** Tourne le cap vers la cible, sans à-coup quand elle change. */
-    void turn(double targetX, double targetZ) {
+    void turn(double targetX, double targetZ, FlecheReglages r) {
         double dx = targetX - px;
         double dz = targetZ - pz;
-        if (headed && dx * dx + dz * dz < HEADING_MIN * HEADING_MIN) {
+        if (headed && dx * dx + dz * dz < r.headingMin() * r.headingMin()) {
             return;
         }
         double wanted = Math.atan2(dz, dx);
@@ -79,13 +71,13 @@ final class Suivi {
             return;
         }
         double delta = Math.IEEEremainder(wanted - heading, 2 * Math.PI);
-        heading += Math.abs(delta) < 1e-3 ? delta : delta * 0.4;
+        heading += Math.abs(delta) < 1e-3 ? delta : delta * r.easeHeading();
     }
 
     /** Éloignement et rehaussement voulus (mur devant, marche devant). */
-    void place(double wantedRadius, double wantedLift, boolean now) {
-        radius = now ? wantedRadius : approach(radius, wantedRadius, 0.3);
-        lift = now ? wantedLift : approach(lift, wantedLift, 0.3);
+    void place(double wantedRadius, double wantedLift, boolean now, FlecheReglages r) {
+        radius = now ? wantedRadius : approach(radius, wantedRadius, r.easePlace());
+        lift = now ? wantedLift : approach(lift, wantedLift, r.easePlace());
     }
 
     private static double approach(double from, double to, double part) {

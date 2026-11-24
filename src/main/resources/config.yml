@@ -458,11 +458,51 @@ sons:
 #     rotation-en-plus: 0
 #     taille-texte: 0.6
 #     texte-au-dessus: 0.35
+#     # Mouvement et envois ; chaque clé absente garde la valeur écrite ici.
+#     reglages:
+#       # Durée des glissements du client et avance maximale sur le joueur (son ping est ajouté), en ticks.
+#       glissement-ticks: 3
+#       avance-max-ticks: 5
+#       # La flèche reste au niveau du dernier sol tant que le joueur n'est pas plus haut ou plus bas que ces écarts.
+#       saut-haut: 1.6
+#       saut-bas: 1.2
+#       # Déplacement en un tick pris pour une téléportation, et distance à plat sous laquelle le cap est gardé.
+#       teleportation: 2.5
+#       cap-min: 1
+#       # Part du chemin faite à chaque tick (1 = tout de suite) : hauteur, vitesse, cap, éloignement.
+#       douceur-hauteur: 0.35
+#       douceur-vitesse: 0.4
+#       douceur-cap: 0.4
+#       douceur-place: 0.3
+#       # Écart gardé avec un mur, éloignement minimal, et rehaussement devant une marche.
+#       mur-ecart: 0.3
+#       mur-min: 0.8
+#       marche-releve: 0.8
+#       hauteur-yeux: 1.62
+#       # Le signe plus haut / plus bas s'affiche à partir de cet écart (blocs) et de cette pente (degrés).
+#       signe-hauteur: 6
+#       signe-pente: 20
+#       # Pente jusqu'à laquelle la flèche reste à plat, et à partir de laquelle elle est verticale.
+#       plat-jusqua: 40
+#       vertical-des: 60
+#       # Inclinaison à partir de laquelle sa face regarde les yeux, et angle minimal avec la ligne des yeux.
+#       face-inclinaison: 30
+#       lecture-angle: 42
+#       # Plus petits changements envoyés au client.
+#       envoi-blocs: 0.01
+#       envoi-degres: 1
+#       # Ticks entre deux lectures des cibles de « fleches » : tous les joueurs, et ceux qui ont déjà une cible.
+#       lecture-ticks: 10
+#       lecture-active-ticks: 2
 
-# Autres cibles de la flèche (même style que accueil.fleche, qui doit être active), relues deux fois par seconde : la
-# première cible lisible passe avant celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne,
-# vide = pas de flèche.
+# Autres cibles de la flèche (même style que accueil.fleche, qui doit être active) : la première cible lisible passe avant
+# celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne, vide = pas de flèche. « texte » remplace
+# « nom » et la distance ({distance} et {hauteur} y sont remplis). « arrive » et « distance-min » : ceux de accueil.fleche
+# sinon.
 # fleches:
 #   exemple:
 #     cible: "%un_placeholder_de_position%"
 #     nom: "%un_placeholder_de_nom%"
+#     texte: ""
+#     arrive: 4
+#     distance-min: 8
