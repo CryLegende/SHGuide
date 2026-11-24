@@ -80,7 +80,7 @@ final class GuideCommands implements TabExecutor {
         s.state.arrowOff = !s.state.arrowOff;
         plugin.sessions().markDirty(p);
         if (s.state.arrowOff) {
-            plugin.fleche().clear(p);
+            plugin.fleche().setTarget(p, null, "");
         }
         plugin.messages().send(p, s.state.arrowOff ? "fleche-off" : "fleche-on");
     }

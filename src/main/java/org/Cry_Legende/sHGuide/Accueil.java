@@ -4,7 +4,6 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.time.LocalDate;
@@ -257,24 +256,9 @@ final class Accueil {
                 "total", Integer.toString(total), "texte", st.text()), (n - 1) / (float) total, c.tutorial().color());
     }
 
-    /** « monde x y z » après les placeholders ; null si vide, monde inconnu ou nombres illisibles. */
+    /** Cible de l'étape après les placeholders ; null si elle n'en a pas ou si elle est illisible. */
     static Location target(AccueilConfig.Step st, Resolver r) {
-        if (st.target().isBlank()) {
-            return null;
-        }
-        String[] parts = r.resolve(st.target()).trim().split("\\s+");
-        if (parts.length < 4) {
-            return null;
-        }
-        World w = Bukkit.getWorld(parts[0]);
-        if (w == null) {
-            return null;
-        }
-        try {
-            return new Location(w, Double.parseDouble(parts[1]), Double.parseDouble(parts[2]), Double.parseDouble(parts[3]));
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return st.target().isBlank() ? null : Fleche.place(r.resolve(st.target()));
     }
 
     private void show(Map<UUID, BossBar> bars, Player p, String text, float progress, BossBar.Color color) {

@@ -22,7 +22,7 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 List<News> news, int newsMax, int annonceBeforeMinutes, int annonceGraceMinutes,
                 Map<String, Integer> slots, List<Integer> taskSlots, String islandCommand, String settingsCommand,
                 Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db,
-                AccueilConfig accueil, AnnonceBarre.Config annonceBar) {
+                AccueilConfig accueil, AnnonceBarre.Config annonceBar, List<Fleche.Source> arrowSources) {
 
     /**
      * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
@@ -228,7 +228,23 @@ record Settings(ZoneId zone, int checkSeconds, int joinDelaySeconds, double near
                 new DbConfig(db.getString("hote", "127.0.0.1"), db.getInt("port", 3306), db.getString("base", "minecraft"),
                         db.getString("utilisateur", ""), db.getString("mot-de-passe", "")),
                 AccueilConfig.read(c.getConfigurationSection("accueil")),
-                AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")));
+                AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")),
+                arrowSources(c.getConfigurationSection("fleches")));
+    }
+
+    private static List<Fleche.Source> arrowSources(ConfigurationSection sec) {
+        List<Fleche.Source> out = new ArrayList<>();
+        if (sec == null) {
+            return out;
+        }
+        for (String id : sec.getKeys(false)) {
+            ConfigurationSection s = sec.getConfigurationSection(id);
+            if (s == null || s.getString("cible", "").isBlank()) {
+                throw new IllegalArgumentException("fleches." + id + ".cible : « monde x y z » ou un placeholder attendu");
+            }
+            out.add(new Fleche.Source(id, s.getString("cible"), s.getString("nom", "")));
+        }
+        return List.copyOf(out);
     }
 
     private static List<DailyVariant> variants(ConfigurationSection prog) {

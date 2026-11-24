@@ -223,7 +223,10 @@ accueil:
   barre-rester-pause: "&e&lCadeau de bienvenue &8· &7en pause pendant l'AFK"
   barre-demain: "&b&lRevenez demain &8· &7Jake vous garde &b{gain}"
   barre-tutoriel: "&a&lÉtape {n}/{total} &8· &f{texte}"
-  fleche: "&f{nom} &7{distance} m"
+  # {hauteur} : fleche-haut ou fleche-bas quand la cible est nettement plus haute ou plus basse, sinon rien
+  fleche: "&f{nom} &7{distance} m{hauteur}"
+  fleche-haut: " &b▲"
+  fleche-bas: " &b▼"
 
 # Barre de l'event annoncé (/shguide annonce, rappels du bot) : {texte} nom de l'event, {temps} compte à rebours
 annonce:

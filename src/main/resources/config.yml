@@ -443,7 +443,8 @@ sons:
 #     titre-disparition-ticks: 25
 #     son: "minecraft:ui.toast.challenge_complete"
 #     commandes: []
-#   # Flèche vers l'étape : item à plat devant le joueur, sous ses yeux, et la distance au-dessus. Montrée à lui seul.
+#   # Flèche vers l'étape : item devant le joueur, sous ses yeux, qui pointe vers la cible (haut et bas compris), et la
+#   # distance au-dessus. Montrée à lui seul. « rotation-en-plus » : degrés ajoutés au dessin dans son plan.
 #   fleche:
 #     actif: true
 #     objet: SPECTRAL_ARROW
@@ -453,6 +454,14 @@ sons:
 #     distance-min: 8
 #     arrive: 4
 #     lueur: ""
-#     rotation-en-plus: -90
+#     rotation-en-plus: 0
 #     taille-texte: 0.6
 #     texte-au-dessus: 0.35
+
+# Autres cibles de la flèche (même style que accueil.fleche, qui doit être active), relues deux fois par seconde : la
+# première cible lisible passe avant celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne,
+# vide = pas de flèche.
+# fleches:
+#   exemple:
+#     cible: "%un_placeholder_de_position%"
+#     nom: "%un_placeholder_de_nom%"
