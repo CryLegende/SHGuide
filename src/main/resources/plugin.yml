@@ -6,9 +6,10 @@ author: Cry_Legende
 # Tâches, objectifs et retour sont lus par PlaceholderAPI : sans lui le guide n'a rien à compter.
 depend:
   - PlaceholderAPI
-# Icônes hdb-<id> : HeadDatabase chargé avant si présent.
+# Icônes hdb-<id> : HeadDatabase chargé avant si présent. Flèche : envoyée en paquets par packetevents.
 softdepend:
   - HeadDatabase
+  - packetevents
 # Chargés par Paper dans le classloader du plugin : HikariCP doit voir le driver MariaDB,
 # que le serveur ne fournit pas (il n'embarque que MySQL et SQLite).
 libraries:

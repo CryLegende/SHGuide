@@ -7,7 +7,7 @@ record FlecheReglages(int glide, double leadMax, double jumpAbove, double jumpBe
                       double easeHeight, double easeSpeed, double easeHeading, double easePlace,
                       double wallGap, double wallMin, double stepLift, double eyes,
                       double markHeight, double markSlope, double flatUntil, double uprightFrom, double fullTilt, double endOn,
-                      double sendMove, double sendTurn, int readTicks, int readActiveTicks) {
+                      double sendMove, double sendTurn, int readTicks, int readActiveTicks, int perTick, int wallTicks, double wallMove) {
 
     static final FlecheReglages DEFAULT = read(null);
 
@@ -19,7 +19,8 @@ record FlecheReglages(int glide, double leadMax, double jumpAbove, double jumpBe
                 at(c, "hauteur-yeux", 1.62, 0, 4), at(c, "signe-hauteur", 6, 0, 500), at(c, "signe-pente", 20, 0, 90),
                 at(c, "plat-jusqua", 40, 0, 89), at(c, "vertical-des", 60, 1, 90), at(c, "face-inclinaison", 30, 1, 90),
                 at(c, "lecture-angle", 42, 0, 80), at(c, "envoi-blocs", 0.01, 0, 1), at(c, "envoi-degres", 1, 0, 45),
-                (int) at(c, "lecture-ticks", 10, 1, 200), (int) at(c, "lecture-active-ticks", 2, 1, 200));
+                (int) at(c, "lecture-ticks", 10, 1, 200), (int) at(c, "lecture-active-ticks", 4, 1, 200),
+                (int) at(c, "par-tick-max", 60, 1, 1000), (int) at(c, "mur-ticks", 4, 1, 40), at(c, "mur-deplacement", 0.25, 0, 5));
     }
 
     private static double at(ConfigurationSection c, String key, double fallback, double min, double max) {

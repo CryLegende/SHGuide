@@ -24,7 +24,8 @@ final class Accueil {
     private final Map<UUID, BossBar> tomorrowBars = new HashMap<>();
     private final Map<UUID, Long> tomorrowUntil = new HashMap<>();
     private final Map<UUID, BossBar> tutoBars = new HashMap<>();
-    private long seconds;
+    private int ticks;
+    private int seconds;
 
     Accueil(SHGuide plugin) {
         this.plugin = plugin;
@@ -124,13 +125,19 @@ final class Accueil {
         }
     }
 
-    /** Toutes les secondes. */
+    /** À chaque tick : un vingtième des joueurs, chacun une fois par seconde. */
     void tick() {
-        seconds++;
+        ticks++;
+        if (ticks % 20 == 0) {
+            seconds++;
+        }
         AccueilConfig c = plugin.settings().accueil();
         LocalDate today = plugin.today();
         long now = System.currentTimeMillis();
         for (Player p : Bukkit.getOnlinePlayers()) {
+            if ((p.getEntityId() + ticks) % 20 != 0) {
+                continue;
+            }
             Sessions.Session s = plugin.sessions().get(p.getUniqueId());
             if (s == null || s.state.firstDay == null) {
                 continue;

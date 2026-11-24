@@ -78,6 +78,8 @@ fuseau: Europe/Paris
 
 # Intervalle, en secondes, entre deux vérifications du programme et de l'objectif d'un joueur.
 verification-secondes: 10
+# Joueurs vérifiés par tick au plus : avec beaucoup de monde, chacun attend un peu plus longtemps.
+verification-par-tick: 1
 
 # Secondes après la connexion avant de prendre la valeur de départ d'un compteur : les plugins finissent de charger
 # les données du joueur, et un nouveau joueur termine ses quêtes automatiques.
@@ -493,7 +495,12 @@ sons:
 #       envoi-degres: 1
 #       # Ticks entre deux lectures des cibles de « fleches » : tous les joueurs, et ceux qui ont déjà une cible.
 #       lecture-ticks: 10
-#       lecture-active-ticks: 2
+#       lecture-active-ticks: 4
+#       # Flèches avancées par tick au plus : au-delà, chacune attend son tour et glisse plus longtemps.
+#       par-tick-max: 60
+#       # Murs sondés au plus tous les « mur-ticks » ticks, quand le joueur a bougé de « mur-deplacement » blocs.
+#       mur-ticks: 4
+#       mur-deplacement: 0.25
 
 # Autres cibles de la flèche (même style que accueil.fleche, qui doit être active) : la première cible lisible passe avant
 # celle du tutoriel. « cible » = « monde x y z » ou un placeholder qui le donne, vide = pas de flèche. « texte » remplace

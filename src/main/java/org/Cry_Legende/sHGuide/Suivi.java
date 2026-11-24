@@ -33,18 +33,25 @@ final class Suivi {
         return ready;
     }
 
-    /** Un tick : position du joueur, « standing » s'il est porté (sol, échelle, eau, vol), ticks d'avance à donner. */
     void follow(double playerX, double playerY, double playerZ, boolean standing, double lead, FlecheReglages r) {
-        double dx = playerX - px;
-        double dz = playerZ - pz;
+        follow(playerX, playerY, playerZ, standing, lead, 1, r);
+    }
+
+    /**
+     * Position du joueur, « standing » s'il est porté (sol, échelle, eau, vol), ticks d'avance à donner, et ticks passés
+     * depuis la dernière fois.
+     */
+    void follow(double playerX, double playerY, double playerZ, boolean standing, double lead, int ticks, FlecheReglages r) {
+        double dx = (playerX - px) / ticks;
+        double dz = (playerZ - pz) / ticks;
         if (!ready || dx * dx + dz * dz > r.teleport() * r.teleport() || Math.abs(playerY - y) > 8) {
             ground = playerY;
             y = playerY;
             vx = vz = 0;
             ready = true;
         } else {
-            vx += (dx - vx) * r.easeSpeed();
-            vz += (dz - vz) * r.easeSpeed();
+            vx += (dx - vx) * over(r.easeSpeed(), ticks);
+            vz += (dz - vz) * over(r.easeSpeed(), ticks);
         }
         px = playerX;
         pz = playerZ;
@@ -52,13 +59,17 @@ final class Suivi {
             ground = playerY;
         }
         double want = Math.max(playerY - r.jumpAbove(), Math.min(playerY + r.jumpBelow(), ground));
-        y = approach(y, want, r.easeHeight());
+        y = approach(y, want, over(r.easeHeight(), ticks));
         x = playerX + vx * lead;
         z = playerZ + vz * lead;
     }
 
-    /** Tourne le cap vers la cible, sans à-coup quand elle change. */
     void turn(double targetX, double targetZ, FlecheReglages r) {
+        turn(targetX, targetZ, 1, r);
+    }
+
+    /** Tourne le cap vers la cible, sans à-coup quand elle change. */
+    void turn(double targetX, double targetZ, int ticks, FlecheReglages r) {
         double dx = targetX - px;
         double dz = targetZ - pz;
         if (headed && dx * dx + dz * dz < r.headingMin() * r.headingMin()) {
@@ -71,13 +82,18 @@ final class Suivi {
             return;
         }
         double delta = Math.IEEEremainder(wanted - heading, 2 * Math.PI);
-        heading += Math.abs(delta) < 1e-3 ? delta : delta * r.easeHeading();
+        heading += Math.abs(delta) < 1e-3 ? delta : delta * over(r.easeHeading(), ticks);
     }
 
     /** Éloignement et rehaussement voulus (mur devant, marche devant). */
-    void place(double wantedRadius, double wantedLift, boolean now, FlecheReglages r) {
-        radius = now ? wantedRadius : approach(radius, wantedRadius, r.easePlace());
-        lift = now ? wantedLift : approach(lift, wantedLift, r.easePlace());
+    void place(double wantedRadius, double wantedLift, boolean now, int ticks, FlecheReglages r) {
+        radius = now ? wantedRadius : approach(radius, wantedRadius, over(r.easePlace(), ticks));
+        lift = now ? wantedLift : approach(lift, wantedLift, over(r.easePlace(), ticks));
+    }
+
+    /** Part du chemin faite en plusieurs ticks, pour une part par tick. */
+    static double over(double part, int ticks) {
+        return ticks == 1 ? part : 1 - Math.pow(1 - part, ticks);
     }
 
     private static double approach(double from, double to, double part) {

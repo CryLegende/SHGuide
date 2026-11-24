@@ -72,6 +72,7 @@ public final class SHGuide extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sessions, this);
         getServer().getPluginManager().registerEvents(new GuideMenu.Listener(this), this);
         getServer().getPluginManager().registerEvents(arrivee, this);
+        getServer().getPluginManager().registerEvents(fleche, this);
         GuideCommands commands = new GuideCommands(this);
         for (String name : List.of("guide", "shguide")) {
             PluginCommand command = getCommand(name);
@@ -80,11 +81,10 @@ public final class SHGuide extends JavaPlugin {
         }
         expansion = new GuideExpansion(this);
         expansion.register();
-        Bukkit.getScheduler().runTaskTimer(this, sessions::tick, 20L, 20L);
-        Bukkit.getScheduler().runTaskTimer(this, accueil::tick, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(this, sessions::tick, 20L, 1L);
+        Bukkit.getScheduler().runTaskTimer(this, accueil::tick, 20L, 1L);
         Bukkit.getScheduler().runTaskTimer(this, annonceBarre::tick, 20L, 20L);
         Bukkit.getScheduler().runTaskTimer(this, fleche::tick, 1L, 1L);
-        Bukkit.getScheduler().runTaskTimer(this, fleche::readSources, 20L, 1L);
         for (Player p : Bukkit.getOnlinePlayers()) {
             sessions.load(p);
         }
@@ -96,7 +96,7 @@ public final class SHGuide extends JavaPlugin {
             expansion.unregister();
         }
         if (fleche != null) {
-            fleche.clearAll();
+            fleche.close();
         }
         if (accueil != null) {
             accueil.hideAll();

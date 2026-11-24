@@ -45,6 +45,8 @@ final class Sessions implements Listener {
     private final Map<UUID, Long> serverLastSeen = new ConcurrentHashMap<>();
     private final ExecutorService io = Executors.newSingleThreadExecutor(r -> new Thread(r, "SHGuide-SQL"));
     private int cursor;
+    private int ticks;
+    private double due;
 
     Sessions(SHGuide plugin) {
         this.plugin = plugin;
@@ -116,15 +118,24 @@ final class Sessions implements Listener {
         }
     }
 
-    /** Appelée toutes les secondes : chaque joueur est vérifié une fois par « verification-secondes ». */
+    /**
+     * À chaque tick : chaque joueur est vérifié une fois par « verification-secondes », sans jamais dépasser
+     * « verification-par-tick » joueurs (au-delà, chacun attend son tour).
+     */
     void tick() {
-        List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
-        if (!online.isEmpty()) {
-            int per = Math.max(1, (int) Math.ceil(online.size() / (double) plugin.settings().checkSeconds()));
-            for (int n = 0; n < per && n < online.size(); n++) {
-                cursor = (cursor + 1) % online.size();
-                refresh(online.get(cursor));
+        int count = Bukkit.getOnlinePlayers().size();
+        if (count > 0) {
+            due = Math.min(plugin.settings().checkPerTick(), due + count / (20.0 * plugin.settings().checkSeconds()));
+            if (due >= 1) {
+                List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
+                for (; due >= 1; due--) {
+                    cursor = (cursor + 1) % online.size();
+                    refresh(online.get(cursor));
+                }
             }
+        }
+        if (++ticks % 20 != 0) {
+            return;
         }
         long now = System.currentTimeMillis();
         for (Map.Entry<UUID, Session> en : sessions.entrySet()) {
