@@ -54,7 +54,7 @@ final class GuideMenu {
     }
 
     static void open(SHGuide plugin, Player p, String screenId, int page) {
-        Programme.Tick t = plugin.sessions().refresh(p);
+        Programme.Tick t = plugin.sessions().recent(p);
         Sessions.Session s = plugin.sessions().get(p.getUniqueId());
         if (t == null || s == null) {
             plugin.messages().send(p, "chargement");

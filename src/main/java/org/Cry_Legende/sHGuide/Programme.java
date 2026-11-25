@@ -87,7 +87,10 @@ final class Programme {
             }
             double goal = def.goal(palier);
             double current = 0;
-            if (def.isValue()) {
+            if (s.done.contains(def.id())) {
+                // faite jusqu'à minuit : ses placeholders (%statistic_mine_block% coûte 0,6 ms) ne sont plus lus
+                current = goal;
+            } else if (def.isValue()) {
                 current = Math.max(0, Num.parse(r.resolve(def.value())).orElse(0));
             } else if (def.isCount()) {
                 // écart depuis le début du jour, comme un compteur : juste après minuit, le plugin compté peut

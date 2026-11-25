@@ -28,10 +28,12 @@ final class Sessions implements Listener {
 
     private static final Gson GSON = new Gson();
     private static final long SAVE_EVERY_MILLIS = 60_000;
+    private static final long RECENT_MILLIS = 1_000;
 
     static final class Session {
         PlayerState state;
         Programme.Tick last;
+        long checkedAt;
         Objectives.Choice objective;
         /** Nouveautés sorties depuis la dernière venue (dialogue de retour). */
         List<Nouveautes.Entree> news = List.of();
@@ -167,6 +169,7 @@ final class Sessions implements Listener {
         boolean canBaseline = System.currentTimeMillis() - s.joinedAt >= cfg.joinDelaySeconds() * 1000L;
         Programme.Tick t = Programme.update(s.state, cfg, r, today, canBaseline);
         s.last = t;
+        s.checkedAt = System.currentTimeMillis();
         if (t.dirty()) {
             s.dirty = true;
         }
@@ -199,6 +202,12 @@ final class Sessions implements Listener {
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
         view(p, s);
         return t;
+    }
+
+    /** Pour un écran : la dernière vérification si elle date de moins d'une seconde (le joueur passe d'un écran à l'autre). */
+    Programme.Tick recent(Player p) {
+        Session s = sessions.get(p.getUniqueId());
+        return s != null && s.last != null && System.currentTimeMillis() - s.checkedAt < RECENT_MILLIS ? s.last : refresh(p);
     }
 
     /** Recalcule ce que lisent les placeholders : objectif court, ligne du scoreboard, alerte au-dessus de Jake. */

@@ -66,6 +66,28 @@ class ProgrammeTest {
     }
 
     @Test
+    void aFinishedTaskIsNotReadAgainUntilMidnight() {
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%statistic_jump%", "103");
+        Programme.update(s, cfg, r, DAY);
+        assertTrue(s.done.contains("sauts"));
+        java.util.List<String> read = new java.util.ArrayList<>();
+        Resolver spy = text -> {
+            read.add(text);
+            return r.resolve(text);
+        };
+        Programme.Tick t = Programme.update(s, cfg, spy, DAY);
+        assertFalse(read.contains("%statistic_jump%"));
+        assertTrue(read.contains("%player_level%"));
+        Programme.TaskView jumps = t.tasks().stream().filter(v -> v.def().id().equals("sauts")).findFirst().orElseThrow();
+        assertTrue(jumps.done());
+        assertEquals(jumps.goal(), jumps.current());
+        Programme.update(s, cfg, spy, DAY.plusDays(1));
+        assertTrue(read.contains("%statistic_jump%"));
+    }
+
+    @Test
     void notReadyCounterTakesBaselineLater() {
         values.put("%player_level%", "Chargement...");
         PlayerState s = PlayerState.fresh("Bot");
