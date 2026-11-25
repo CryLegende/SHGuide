@@ -34,6 +34,7 @@ final class Sessions implements Listener {
         PlayerState state;
         Programme.Tick last;
         long checkedAt;
+        final Lecteur reader = new Lecteur(System::currentTimeMillis);
         Objectives.Choice objective;
         /** Nouveautés sorties depuis la dernière venue (dialogue de retour). */
         List<Nouveautes.Entree> news = List.of();
@@ -158,13 +159,18 @@ final class Sessions implements Listener {
 
     /** Met à jour le programme et l'objectif du joueur maintenant ; null si son guide n'est pas chargé. */
     Programme.Tick refresh(Player p) {
+        return refresh(p, false);
+    }
+
+    /** « now » : relit aussi les placeholders coûteux (placeholders-lents). */
+    private Programme.Tick refresh(Player p, boolean now) {
         Session s = sessions.get(p.getUniqueId());
         if (s == null) {
             return null;
         }
         Settings cfg = plugin.settings();
         Messages m = plugin.messages();
-        Resolver r = text -> PlaceholderAPI.setPlaceholders(p, text);
+        Resolver r = s.reader.with(text -> PlaceholderAPI.setPlaceholders(p, text), cfg.slowPlaceholders(), now);
         LocalDate today = plugin.today();
         boolean canBaseline = System.currentTimeMillis() - s.joinedAt >= cfg.joinDelaySeconds() * 1000L;
         Programme.Tick t = Programme.update(s.state, cfg, r, today, canBaseline);
@@ -184,9 +190,9 @@ final class Sessions implements Listener {
             m.send(p, "programme-complet");
             plugin.sound(p, "programme");
         }
-        long now = System.currentTimeMillis();
-        Annonces.Active a = plugin.annonces().current(now, cfg.annonceBeforeMinutes(), cfg.annonceGraceMinutes());
-        Annonces.Active shown = a == null ? null : new Annonces.Active(Annonces.label(a, now,
+        long time = System.currentTimeMillis();
+        Annonces.Active a = plugin.annonces().current(time, cfg.annonceBeforeMinutes(), cfg.annonceGraceMinutes());
+        Annonces.Active shown = a == null ? null : new Annonces.Active(Annonces.label(a, time,
                 m.text("objectif.annonce-bientot"), m.text("objectif.annonce-commence")), a.click(), a.startMillis());
         Map<String, String> tokens = new HashMap<>(Objectives.tokens(t.tasks(), !s.state.pending.isEmpty(), shown,
                 cfg.nearRatio(), m.text("objectif.presque")));
@@ -204,10 +210,10 @@ final class Sessions implements Listener {
         return t;
     }
 
-    /** Pour un écran : la dernière vérification si elle date de moins d'une seconde (le joueur passe d'un écran à l'autre). */
+    /** Pour un écran : tout est relu, sauf si la dernière vérification date de moins d'une seconde (d'un écran à l'autre). */
     Programme.Tick recent(Player p) {
         Session s = sessions.get(p.getUniqueId());
-        return s != null && s.last != null && System.currentTimeMillis() - s.checkedAt < RECENT_MILLIS ? s.last : refresh(p);
+        return s != null && s.last != null && System.currentTimeMillis() - s.checkedAt < RECENT_MILLIS ? s.last : refresh(p, true);
     }
 
     /** Recalcule ce que lisent les placeholders : objectif court, ligne du scoreboard, alerte au-dessus de Jake. */

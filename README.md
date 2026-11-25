@@ -51,7 +51,7 @@ L'accueil ne concerne que les nouveaux joueurs, les anciens ne voient rien de to
 
 La flèche sert aussi en dehors de l'accueil, à tous les joueurs : chaque entrée de la section `fleches` donne une `cible` (`monde x y z`, ou un placeholder qui le donne) et un `nom` ou un `texte`. Une cible de plusieurs points (`monde x y z x y z …`) est un chemin : la flèche avance dessus avec le joueur et montre toujours un endroit devant lui, sans se retourner quand il dépasse un point. `fin` est le texte laissé un moment quand la cible disparaît, pendant que la flèche s'efface. La première cible lisible passe avant celle du tutoriel : un joueur n'a jamais deux flèches. Le mouvement, l'inclinaison et les envois se règlent dans `accueil.fleche.reglages`.
 
-Le plugin ne connaît aucun autre plugin : tout passe par des placeholders PlaceholderAPI et des commandes écrits dans `config.yml`. Les joueurs sont vérifiés un par un, chacun une fois par `verification-secondes`, et les placeholders du guide lisent seulement le dernier calcul.
+Le plugin ne connaît aucun autre plugin : tout passe par des placeholders PlaceholderAPI et des commandes écrits dans `config.yml`. Les joueurs sont vérifiés un par un, chacun une fois par `verification-secondes`, et les placeholders du guide lisent seulement le dernier calcul. Une tâche faite n'est plus relue jusqu'à minuit, et les placeholders coûteux (`placeholders-lents`) sont lus moins souvent.
 
 Utilisé sur : **Opale**.
 

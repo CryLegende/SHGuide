@@ -95,6 +95,13 @@ verification-par-tick: 1
 # les données du joueur, et un nouveau joueur termine ses quêtes automatiques.
 depart-apres-connexion-secondes: 30
 
+# Placeholders coûteux : lus au plus une fois par « secondes » pour un joueur, sauf quand il ouvre un écran de Jake.
+placeholders-lents:
+  secondes: 30
+  liste:
+    # additionne tous les types de blocs du jeu, 0,6 ms
+    - "%statistic_mine_block%"
+
 # Part de l'objectif d'une tâche à partir de laquelle elle devient « presque finie ».
 seuil-presque: 0.8
 

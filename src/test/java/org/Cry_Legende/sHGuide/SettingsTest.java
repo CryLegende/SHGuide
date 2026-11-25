@@ -23,6 +23,14 @@ class SettingsTest {
     }
 
     @Test
+    void slowPlaceholdersAreRead() {
+        assertEquals(java.util.Map.of("%statistic_mine_block%", 30), Settings.read(example()).slowPlaceholders());
+        YamlConfiguration c = example();
+        c.set("placeholders-lents", null);
+        assertTrue(Settings.read(c).slowPlaceholders().isEmpty());
+    }
+
+    @Test
     void readsExample() {
         Settings s = Settings.read(example());
         assertEquals(2, s.tasks().size());

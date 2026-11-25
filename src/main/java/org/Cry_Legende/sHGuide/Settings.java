@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /** config.yml lu une fois par chargement ; tout est immuable ensuite. */
-record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySeconds, double nearRatio, String palierPlaceholder,
+record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Integer> slowPlaceholders, int joinDelaySeconds, double nearRatio, String palierPlaceholder,
                 List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward, String dailyRewardText,
                 List<DailyVariant> dailyVariants, int cycle, Map<Integer, List<String>> steps, Map<Integer, String> gains,
                 List<ObjectiveDef> objectives, int objectiveMax,
@@ -176,9 +176,16 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
             }
         }
 
+        Map<String, Integer> slow = new LinkedHashMap<>();
+        int slowSeconds = c.getInt("placeholders-lents.secondes", 30);
+        for (String placeholder : c.getStringList("placeholders-lents.liste")) {
+            slow.put(placeholder.trim(), slowSeconds);
+        }
+
         ConfigurationSection db = need(c, "base-de-donnees");
         return new Settings(ZoneId.of(c.getString("fuseau", "Europe/Paris")),
-                Math.max(1, c.getInt("verification-secondes", 10)), Math.max(1, c.getInt("verification-par-tick", 1)), Math.max(0, c.getInt("depart-apres-connexion-secondes", 30)),
+                Math.max(1, c.getInt("verification-secondes", 10)), Math.max(1, c.getInt("verification-par-tick", 1)), Map.copyOf(slow),
+                Math.max(0, c.getInt("depart-apres-connexion-secondes", 30)),
                 c.getDouble("seuil-presque", 0.8),
                 c.getString("palier", "1"), List.copyOf(tasks), List.copyOf(rotating),
                 List.copyOf(prog.getStringList("recompense")), prog.getString("recompense-texte", ""), variants(prog), cycle,
