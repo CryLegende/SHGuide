@@ -32,6 +32,11 @@ final class GuideCommands implements TabExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        plugin.onMain(() -> run(sender, command, args));
+        return true;
+    }
+
+    private void run(CommandSender sender, Command command, String[] args) {
         Messages m = plugin.messages();
         if (command.getName().equalsIgnoreCase("guide")) {
             if (!(sender instanceof Player p)) {
@@ -49,12 +54,12 @@ final class GuideCommands implements TabExecutor {
             } else {
                 GuideMenu.open(plugin, p);
             }
-            return true;
+            return;
         }
         String sub = args.length == 0 ? "" : args[0].toLowerCase(Locale.ROOT);
         if (!SUBS.contains(sub) || !sender.hasPermission("shguide.admin." + sub)) {
             m.send(sender, "utilisation", "commandes", usage(sender));
-            return true;
+            return;
         }
         switch (sub) {
             case "reload" -> plugin.reload(sender);
@@ -71,7 +76,6 @@ final class GuideCommands implements TabExecutor {
                 m.send(sender, "reset-ok", "joueur", p.getName());
             });
         }
-        return true;
     }
 
     /**

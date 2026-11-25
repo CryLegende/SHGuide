@@ -11,11 +11,13 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
 
 /** Jake, le guide du joueur : objectif du moment, tâches du jour, récompenses, nouveautés, retour guidé, accueil. */
 public final class SHGuide extends JavaPlugin {
@@ -25,6 +27,7 @@ public final class SHGuide extends JavaPlugin {
     }
 
     private volatile Files files;
+    private Thread mainThread;
     private HikariDataSource pool;
     private GuideStore store;
     private Sessions sessions;
@@ -45,8 +48,9 @@ public final class SHGuide extends JavaPlugin {
                 saveResource(name, false);
             }
         }
+        mainThread = Thread.currentThread();
         try {
-            files = readFiles();
+            files = readFiles(true);
         } catch (InvalidFile e) {
             getLogger().severe(e.name + " invalide, SHGuide s'arrête : " + e.getMessage());
             getServer().getPluginManager().disablePlugin(this);
@@ -133,7 +137,7 @@ public final class SHGuide extends JavaPlugin {
     boolean reload(CommandSender sender) {
         Files next;
         try {
-            next = readFiles();
+            next = readFiles(false);
         } catch (InvalidFile e) {
             messages().send(sender, "reload-erreur", "fichier", e.name, "erreur", e.getMessage());
             return false;
@@ -154,19 +158,62 @@ public final class SHGuide extends JavaPlugin {
         }
     }
 
-    private Files readFiles() {
+    /**
+     * « startup » : au démarrage, un fichier édité par le staff et devenu illisible n'arrête pas le guide (menus.yml et
+     * messages.yml du jar à la place, nouveautés illisibles laissées de côté), la console le dit. Un reload, lui, refuse tout.
+     */
+    private Files readFiles(boolean startup) {
         Settings s = read("config.yml", Settings::read);
-        MenusConfig menus = read("menus.yml", MenusConfig::read);
-        Nouveautes news = read("nouveautes.yml", Nouveautes::read);
-        Messages m = read("messages.yml", file -> {
-            InputStream defaults = getResource("messages.yml");
-            if (defaults != null) {
-                file.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defaults, StandardCharsets.UTF_8)));
+        MenusConfig menus = readOrDefault("menus.yml", MenusConfig::read, startup);
+        List<String> newsErrors = new ArrayList<>();
+        Nouveautes news;
+        try {
+            news = read("nouveautes.yml", file -> Nouveautes.read(file, newsErrors));
+        } catch (InvalidFile e) {
+            if (!startup) {
+                throw e;
             }
+            news = new Nouveautes(List.of());
+            newsErrors.add(e.getMessage());
+        }
+        for (Nouveautes.Entree n : news.all()) {
+            if (!Icons.exists(n.icon())) {
+                newsErrors.add(n.id() + ".icone : « " + n.icon() + " » inconnue");
+            }
+        }
+        report("nouveautes.yml", newsErrors, startup);
+        Messages m = readOrDefault("messages.yml", file -> {
+            file.setDefaults(resource("messages.yml"));
             return new Messages(file);
-        });
-        checkTasks(s, menus);
+        }, startup);
+        report("menus.yml", missingSlots(s, menus), startup);
         return new Files(s, menus, news, m);
+    }
+
+    /** Au démarrage, les erreurs vont dans la console ; à un reload, la première l'annule. */
+    private void report(String file, List<String> errors, boolean startup) {
+        if (!errors.isEmpty() && !startup) {
+            throw new InvalidFile(file, new IllegalArgumentException(errors.get(0)));
+        }
+        for (String error : errors) {
+            getLogger().severe(file + " : " + error);
+        }
+    }
+
+    private <T> T readOrDefault(String name, java.util.function.Function<YamlConfiguration, T> reader, boolean startup) {
+        try {
+            return read(name, reader);
+        } catch (InvalidFile e) {
+            if (!startup) {
+                throw e;
+            }
+            getLogger().severe(name + " invalide, celui du jar le remplace jusqu'au prochain /shguide reload : " + e.getMessage());
+            return reader.apply(resource(name));
+        }
+    }
+
+    private YamlConfiguration resource(String name) {
+        return YamlConfiguration.loadConfiguration(new InputStreamReader(getResource(name), StandardCharsets.UTF_8));
     }
 
     private <T> T read(String name, java.util.function.Function<YamlConfiguration, T> reader) {
@@ -181,16 +228,19 @@ public final class SHGuide extends JavaPlugin {
         }
     }
 
-    /** Les zones « taches » ont assez de cases pour les tâches d'un jour. */
-    private static void checkTasks(Settings s, MenusConfig menus) {
-        int daily = s.tasks().size() + (s.rotating().isEmpty() ? 0 : 1);
+    /** Les zones ont assez de cases pour les tâches d'un jour et les paliers de la série. */
+    private static List<String> missingSlots(Settings s, MenusConfig menus) {
+        List<String> errors = new ArrayList<>();
+        Map<String, Integer> needed = Map.of("taches", s.tasks().size() + (s.rotating().isEmpty() ? 0 : 1), "paliers", s.stepDays().size());
         for (MenusConfig.Ecran e : menus.screens().values()) {
-            MenusConfig.Zone z = e.zones().get("taches");
-            if (z != null && z.slots().size() < daily) {
-                throw new InvalidFile("menus.yml", new IllegalArgumentException("menus." + e.id() + ".zones.taches.cases : "
-                        + daily + " cases attendues pour les tâches du jour"));
-            }
+            needed.forEach((type, count) -> {
+                MenusConfig.Zone z = e.zones().get(type);
+                if (z != null && z.slots().size() < count) {
+                    errors.add("menus." + e.id() + ".zones." + type + ".cases : " + count + " cases attendues");
+                }
+            });
         }
+        return errors;
     }
 
     /** Coupe ou remet la flèche du tutoriel. */
@@ -268,6 +318,18 @@ public final class SHGuide extends JavaPlugin {
         Bukkit.getScheduler().runTask(this, r);
     }
 
+    /**
+     * Tout de suite sur le fil principal, sinon au prochain tick. Avec les mondes en parallèle (DivineMC), commandes et
+     * événements d'un joueur peuvent arriver sur le fil de son monde, où Bukkit.isPrimaryThread() répond vrai.
+     */
+    void onMain(Runnable r) {
+        if (Thread.currentThread() == mainThread) {
+            r.run();
+        } else if (isEnabled()) {
+            sync(r);
+        }
+    }
+
     /** Commandes de la config : [console] en console, sinon lancées par le joueur ; {joueur} = son pseudo. */
     void runCommands(Player p, List<String> commands) {
         for (String raw : commands) {
@@ -275,10 +337,15 @@ public final class SHGuide extends JavaPlugin {
             if (cmd.isEmpty()) {
                 continue;
             }
-            if (cmd.startsWith("[console]")) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.substring("[console]".length()).trim());
-            } else {
-                playerCommand(p, cmd);
+            try {
+                if (cmd.startsWith("[console]")) {
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.substring("[console]".length()).trim());
+                } else {
+                    playerCommand(p, cmd);
+                }
+            } catch (RuntimeException e) {
+                // une commande en panne n'empêche pas les suivantes (les autres cadeaux)
+                getLogger().log(Level.SEVERE, "Commande « " + cmd + " » en échec pour " + p.getName(), e);
             }
         }
     }

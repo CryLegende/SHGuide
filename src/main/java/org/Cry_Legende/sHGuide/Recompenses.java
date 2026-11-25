@@ -85,7 +85,7 @@ final class Recompenses {
         for (String id : picked) {
             s.state.pending.remove(id);
         }
-        plugin.sessions().markDirty(p);
+        plugin.sessions().saveNow(p);
         Settings cfg = plugin.settings();
         List<String> gains = texts(cfg, plugin.messages(), picked, plugin.today());
         AccueilConfig ac = cfg.accueil();

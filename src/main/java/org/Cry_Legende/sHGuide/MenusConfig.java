@@ -16,7 +16,7 @@ import java.util.TreeSet;
  * cases remplies par le plugin (tâches du jour, piste et paliers de la série, nouveautés, étapes du tutoriel) avec les
  * modèles écrits dans le fichier. Lu une fois par chargement ; une erreur nomme la clé fautive.
  */
-record MenusConfig(Style style, Texte.Bar bar, Map<String, List<String>> lists, Map<String, Ecran> screens, String home,
+record MenusConfig(Style style, Texte.Bar bar, Texte.Phrase sentence, Map<String, List<String>> lists, Map<String, Ecran> screens, String home,
                    int closeTicks) {
 
     static final List<String> ZONES = List.of("taches", "piste", "paliers", "nouveautes", "etapes");
@@ -84,6 +84,8 @@ record MenusConfig(Style style, Texte.Bar bar, Map<String, List<String>> lists, 
         ConfigurationSection b = c.getConfigurationSection("barre");
         Texte.Bar bar = b == null ? new Texte.Bar(10, "■", "&8■")
                 : new Texte.Bar(Math.max(1, b.getInt("cases", 10)), b.getString("pleine", "■"), b.getString("vide", "&8■"));
+        Texte.Phrase sentence = new Texte.Phrase(Math.max(10, c.getInt("phrase.largeur", 38)), c.getString("phrase.debut", "&8&l« &7"),
+                c.getString("phrase.suite", "&7"), c.getString("phrase.fin", " &8&l»"));
         Map<String, List<String>> lists = new LinkedHashMap<>();
         ConfigurationSection l = c.getConfigurationSection("listes");
         if (l != null) {
@@ -99,7 +101,7 @@ record MenusConfig(Style style, Texte.Bar bar, Map<String, List<String>> lists, 
         if (!screens.containsKey(home)) {
             throw new IllegalArgumentException("accueil : l'écran « " + home + " » n'existe pas dans menus");
         }
-        MenusConfig out = new MenusConfig(style, bar, lists, screens, home, Math.max(0, c.getInt("fermeture-ticks", 6)));
+        MenusConfig out = new MenusConfig(style, bar, sentence, lists, screens, home, Math.max(0, c.getInt("fermeture-ticks", 6)));
         out.checkLinks();
         return out;
     }

@@ -79,6 +79,13 @@ barre:
   pleine: "■"
   vide: "&8■"
 
+# Phrase d'une nouveauté, écrite d'un trait dans nouveautes.yml : coupée ici en lignes de « largeur » caractères au plus.
+phrase:
+  largeur: 38
+  debut: "&8&l« &7"
+  suite: "&7"
+  fin: " &8&l»"
+
 # Lignes des blocs de liste.
 listes:
   # taches_liste : {texte} {actuel} {quantite}, {seul} = oui pour une tâche à faire une seule fois

@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
@@ -292,7 +293,7 @@ final class GuideMenu {
                 put(z.slots().get(i), z.templates().get(unread.contains(n) ? "nouvelle" : "vue"), ctx.with(Map.of(
                         "titre", n.title(), "icone", n.icon(), "date", n.date().format(cfg.newsDate()), "commande", n.command(),
                         "commande_oui", Jetons.yes(!n.command().isBlank()), "cliquable", Jetons.yes(!n.click().isEmpty())),
-                        Map.of(), Map.of("texte", n.text())));
+                        Map.of(), Map.of("texte", n.lines(plugin.menus().sentence()))));
                 clicks.put(z.slots().get(i), n.click());
             }
             if (plugin.nouveautes().markRead(s.state, page)) {
@@ -364,7 +365,7 @@ final class GuideMenu {
                 }
                 case JOUEUR -> {
                     command = true;
-                    plugin.origine().set(p, h.screen, h.page);
+                    leave(plugin, p, h);
                     plugin.runCommands(p, List.of(a.arg()));
                 }
             }
@@ -374,9 +375,15 @@ final class GuideMenu {
         }
         if (command) {
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!p.isOnline()) {
+                    return;
+                }
+                Inventory top = p.getOpenInventory().getTopInventory();
                 // la commande n'a ouvert aucun autre menu (téléportation, message...) : le nôtre se ferme
-                if (p.isOnline() && p.getOpenInventory().getTopInventory().equals(h.inv)) {
+                if (top.equals(h.inv)) {
                     p.closeInventory();
+                    plugin.origine().clear(p);
+                } else if (top.getType() == InventoryType.CRAFTING) {
                     plugin.origine().clear(p);
                 }
             }, plugin.menus().closeTicks());
@@ -390,9 +397,16 @@ final class GuideMenu {
             open(plugin, p, words.length == 1 ? plugin.menus().home() : words[1], 0);
             return false;
         }
-        plugin.origine().set(p, h.screen, h.page);
+        leave(plugin, p, h);
         plugin.runCommands(p, List.of(click));
         return true;
+    }
+
+    /** Le menu que la commande va ouvrir pourra revenir ici, sauf si notre menu est déjà fermé (« [fermer] » avant elle). */
+    private static void leave(SHGuide plugin, Player p, Holder h) {
+        if (p.getOpenInventory().getTopInventory().equals(h.inv)) {
+            plugin.origine().set(p, h.screen, h.page);
+        }
     }
 
     static final class Listener implements org.bukkit.event.Listener {

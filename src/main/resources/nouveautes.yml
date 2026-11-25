@@ -2,26 +2,27 @@
 #                          SHGuide - Les nouveautés                        #
 # ======================================================================== #
 #
-# Une entrée par nouveauté, montrée dans l'écran « Nouveautés » de Jake (les plus récentes d'abord, puis l'ordre du fichier)
-# et dans le dialogue d'un joueur revenu après une absence. /shguide reload relit ce fichier.
+# Une entrée par nouveauté, montrée dans l'écran « Nouveautés » de Jake et dans le dialogue d'un joueur qui revient.
 #
-#   date       jour de sortie (2026-11-24) ; avant ce jour, personne ne la voit
-#   titre      une ligne courte
-#   icone      matériau (CHEST), tête HeadDatabase (hdb-81626) ou tête texturée (basehead-<base64>)
-#   texte      une ou deux lignes
-#   commande   affichée, et lancée au clic (facultatif)
-#   clic       actions du clic si ce n'est pas la commande (mêmes actions que menus.yml, facultatif)
+# Ajouter une nouveauté : copier ces lignes à la fin du fichier, les remplir, puis /shguide reload (pas de redémarrage).
 #
-# Elle brille tant que le joueur ne l'a pas vue (nouveautes-recentes-jours dans config.yml, 30 jours au plus). Changer sa clé
-# la rend de nouveau « pas vue » pour tout le monde.
+#   ma-nouveaute:                      nom unique, sans espace ni accent
+#     date: "2026-11-30"               jour de sortie ; avant, personne ne la voit (elle peut donc être préparée d'avance)
+#     titre: "Une ligne courte"
+#     texte: "Une phrase simple."      facultatif ; sans couleur ni retour à la ligne, le style est dans menus.yml (phrase)
+#     commande: "/commande"            facultatif ; affichée, et lancée au clic
+#     icone: CHEST                     facultatif, papier sinon ; objet du jeu, tête hdb-<id> ou basehead-<base64>
+#     clic: "spawn"                    facultatif ; si le clic ne doit pas lancer la commande (actions de menus.yml)
+#
+# L'ordre se fait tout seul (les plus récentes d'abord). Une entrée brille tant que le joueur ne l'a pas vue, 30 jours au
+# plus (nouveautes-recentes-jours dans config.yml). Renommer sa clé la rend de nouveau « pas vue » pour tout le monde. Une
+# vieille entrée se supprime quand on veut. « texte » accepte aussi une liste de lignes avec leurs couleurs.
 #
 # ======================================================================== #
 
 guide:
   date: "2026-11-23"
   titre: "Jake devient votre guide"
-  icone: PLAYER_HEAD
-  texte:
-    - "&8&l« &7Objectif, tâches du jour, récompenses"
-    - "&7et nouveautés au même endroit. &8&l»"
+  texte: "Objectif, tâches du jour, récompenses et nouveautés au même endroit."
   commande: "/guide"
+  icone: PLAYER_HEAD

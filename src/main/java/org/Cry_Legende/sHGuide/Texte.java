@@ -153,6 +153,45 @@ final class Texte {
         return out;
     }
 
+    /** Habillage d'une phrase simple : lignes de « width » caractères au plus, entre « start » et « end ». */
+    record Phrase(int width, String start, String next, String end) {
+    }
+
+    /** Une phrase écrite d'un trait devient les lignes d'un lore, coupées entre les mots et de longueurs proches. */
+    static List<String> sentence(String text, Phrase style) {
+        String plain = text.trim().replaceAll("\\s+", " ");
+        if (plain.isEmpty()) {
+            return List.of();
+        }
+        List<String> rows = wrap(plain, Math.max(1, style.width()));
+        for (int width = style.width() - 1; width > 0; width--) {
+            List<String> tighter = wrap(plain, width);
+            if (tighter.size() > rows.size()) {
+                break;
+            }
+            rows = tighter;
+        }
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            out.add((i == 0 ? style.start() : style.next()) + rows.get(i) + (i == rows.size() - 1 ? style.end() : ""));
+        }
+        return out;
+    }
+
+    private static List<String> wrap(String text, int width) {
+        List<String> rows = new ArrayList<>();
+        StringBuilder row = new StringBuilder();
+        for (String word : text.split(" ")) {
+            if (!row.isEmpty() && strip(row + " " + word).length() > width) {
+                rows.add(row.toString());
+                row.setLength(0);
+            }
+            row.append(row.isEmpty() ? "" : " ").append(word);
+        }
+        rows.add(row.toString());
+        return rows;
+    }
+
     /** Le texte sans ses couleurs. */
     static String strip(String text) {
         return text == null ? "" : COLORS.matcher(text).replaceAll("");

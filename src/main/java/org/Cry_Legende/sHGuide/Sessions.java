@@ -118,15 +118,18 @@ final class Sessions implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
-        serverLastSeen.remove(e.getPlayer().getUniqueId());
-        plugin.accueil().forget(e.getPlayer());
-        plugin.annonceBarre().forget(e.getPlayer());
-        plugin.fleche().clear(e.getPlayer());
-        Session s = sessions.remove(e.getPlayer().getUniqueId());
-        if (s != null) {
-            s.state.lastSeen = plugin.today().toString();
-            save(e.getPlayer().getUniqueId(), s);
-        }
+        Player p = e.getPlayer();
+        plugin.onMain(() -> {
+            serverLastSeen.remove(p.getUniqueId());
+            plugin.accueil().forget(p);
+            plugin.annonceBarre().forget(p);
+            plugin.fleche().clear(p);
+            Session s = sessions.remove(p.getUniqueId());
+            if (s != null) {
+                s.state.lastSeen = plugin.today().toString();
+                save(p.getUniqueId(), s);
+            }
+        });
     }
 
     /**
@@ -265,6 +268,14 @@ final class Sessions implements Listener {
         tk.put("objectif", o == null ? plugin.messages().text("objectif.aucun") : o.todo().isEmpty() ? o.text() : o.todo());
         return Texte.lines(plugin.messages().lines("retour.lignes"), new Texte.Contexte(tk, Map.of(),
                 Map.of("nouveautes_liste", list), text -> PlaceholderAPI.setPlaceholders(p, text), plugin.menus().bar()));
+    }
+
+    /** Écrit l'état du joueur sans attendre (cadeaux retirés : un arrêt brutal ne les redonne pas). */
+    void saveNow(Player p) {
+        Session s = sessions.get(p.getUniqueId());
+        if (s != null) {
+            save(p.getUniqueId(), s);
+        }
     }
 
     void markDirty(Player p) {

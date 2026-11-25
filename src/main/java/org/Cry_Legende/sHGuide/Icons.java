@@ -39,6 +39,16 @@ final class Icons {
         return new ItemStack(Material.PLAYER_HEAD);
     }
 
+    /** Vrai pour un objet du jeu ou une tête (hdb-, basehead-). */
+    static boolean exists(String spec) {
+        String s = spec == null ? "" : spec.trim().toLowerCase();
+        if (s.startsWith("hdb-") || s.startsWith("basehead-")) {
+            return true;
+        }
+        Material mat = Material.matchMaterial(s);
+        return mat != null && mat.isItem();
+    }
+
     static void clear() {
         CACHE.clear();
     }

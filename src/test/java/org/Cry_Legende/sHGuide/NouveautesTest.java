@@ -17,7 +17,12 @@ class NouveautesTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-11-25");
 
     private static Nouveautes news(String yaml) {
-        return Nouveautes.read(YamlConfiguration.loadConfiguration(new StringReader(yaml)));
+        List<String> errors = new java.util.ArrayList<>();
+        Nouveautes n = Nouveautes.read(YamlConfiguration.loadConfiguration(new StringReader(yaml)), errors);
+        if (!errors.isEmpty()) {
+            throw new IllegalArgumentException(errors.get(0));
+        }
+        return n;
     }
 
     private static final String THREE = """
@@ -96,5 +101,48 @@ class NouveautesTest {
     @Test
     void emptyFileMeansNoNews() {
         assertEquals(List.of(), news("").out(TODAY));
+    }
+
+    @Test
+    void aPlainSentenceIsWrappedAndDressedALineListIsKept() {
+        Texte.Phrase style = new Texte.Phrase(38, "« ", "", " »");
+        Nouveautes n = news("""
+                phrase:
+                  date: "2026-11-24"
+                  titre: "Phrase"
+                  texte: "Fusionnez 5 décorations pareilles en 1 plus rare."
+                lignes:
+                  date: "2026-11-24"
+                  titre: "Lignes"
+                  texte:
+                    - "&7Une"
+                    - "&7Deux"
+                rien:
+                  date: "2026-11-24"
+                  titre: "Rien"
+                """);
+        assertEquals(List.of("« Fusionnez 5 décorations", "pareilles en 1 plus rare. »"), n.all().get(0).lines(style));
+        assertEquals(List.of("&7Une", "&7Deux"), n.all().get(1).lines(style));
+        assertEquals(List.of(), n.all().get(2).lines(style));
+        assertEquals("PAPER", n.all().get(2).icon());
+    }
+
+    @Test
+    void aBrokenEntryLeavesTheOthers() {
+        List<String> errors = new java.util.ArrayList<>();
+        Nouveautes n = Nouveautes.read(YamlConfiguration.loadConfiguration(new StringReader("""
+                bonne:
+                  date: "2026-11-24"
+                  titre: "Bonne"
+                sans-titre:
+                  date: "2026-11-24"
+                mauvaise-date:
+                  date: "hier"
+                  titre: "Date"
+                """)), errors);
+        assertEquals(List.of("bonne"), ids(n.all()));
+        assertEquals(2, errors.size());
+        assertTrue(errors.get(0).contains("sans-titre.titre"));
+        assertTrue(errors.get(1).contains("mauvaise-date.date"));
     }
 }

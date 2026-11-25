@@ -34,10 +34,10 @@ public final class Messages {
             return;
         }
         Component line = LEGACY.deserialize(text);
-        String command = file.getString("clics." + key, "");
+        String command = text("clics." + key);
         if (!command.isBlank() && to instanceof Player) {
             line = line.clickEvent(ClickEvent.runCommand("/" + command));
-            String hover = file.getString("clics.survol", "");
+            String hover = text("clics.survol");
             if (!hover.isBlank()) {
                 line = line.hoverEvent(HoverEvent.showText(LEGACY.deserialize(hover)));
             }

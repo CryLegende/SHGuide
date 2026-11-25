@@ -83,4 +83,18 @@ class TexteTest {
         assertEquals("Bâtisseur", Texte.strip("&e&lBâtis§aseur"));
         assertEquals("Opale", Texte.strip("&#5CFFB0Opale"));
     }
+
+    @Test
+    void sentencesAreCutBetweenWordsInRowsOfSimilarLength() {
+        Texte.Phrase style = new Texte.Phrase(20, "[", "-", "]");
+        assertEquals(List.of("[court]"), Texte.sentence("court", style));
+        assertEquals(List.of(), Texte.sentence("   ", style));
+        List<String> rows = Texte.sentence("un deux trois quatre cinq six sept", style);
+        assertEquals(2, rows.size());
+        assertTrue(rows.get(0).startsWith("["));
+        assertTrue(rows.get(1).endsWith("]"));
+        assertTrue(Math.abs(rows.get(0).length() - rows.get(1).length()) <= 6, rows.toString());
+        assertEquals(List.of("[anticonstitutionnellement long]"), Texte.sentence("anticonstitutionnellement long", new Texte.Phrase(40, "[", "-", "]")));
+        assertEquals(List.of("[&aquatre", "-cinq]"), Texte.sentence("&aquatre cinq", new Texte.Phrase(7, "[", "-", "]")));
+    }
 }

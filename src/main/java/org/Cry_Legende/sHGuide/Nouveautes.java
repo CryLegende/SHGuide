@@ -17,36 +17,51 @@ import java.util.List;
  */
 record Nouveautes(List<Entree> all) {
 
-    record Entree(String id, LocalDate date, String title, String icon, List<String> text, String command, List<String> click) {
+    /** « sentence » : phrase simple, habillée par menus.yml ; « text » : lignes écrites avec leurs couleurs. */
+    record Entree(String id, LocalDate date, String title, String icon, String sentence, List<String> text, String command,
+                  List<String> click) {
+
+        List<String> lines(Texte.Phrase style) {
+            return sentence.isEmpty() ? text : Texte.sentence(sentence, style);
+        }
     }
 
-    static Nouveautes read(ConfigurationSection c) {
+    /** Les entrées lisibles ; chaque entrée illisible est laissée de côté et dite dans « errors ». */
+    static Nouveautes read(ConfigurationSection c, List<String> errors) {
         List<Entree> out = new ArrayList<>();
         for (String id : c.getKeys(false)) {
-            ConfigurationSection s = c.getConfigurationSection(id);
-            if (s == null) {
-                throw new IllegalArgumentException(id + " : section attendue");
+            try {
+                out.add(entry(id, c.getConfigurationSection(id)));
+            } catch (IllegalArgumentException e) {
+                errors.add(e.getMessage());
             }
-            String title = s.getString("titre", "");
-            if (title.isBlank()) {
-                throw new IllegalArgumentException(id + ".titre manquant");
-            }
-            String command = s.getString("commande", "");
-            List<String> click = s.isList("clic") ? s.getStringList("clic")
-                    : !s.getString("clic", "").isBlank() ? List.of(s.getString("clic"))
-                    : command.isBlank() ? List.of() : List.of(command);
-            for (String line : click) {
-                try {
-                    Action.parse(line);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException(id + ".clic : " + e.getMessage());
-                }
-            }
-            out.add(new Entree(id, date(id, s.get("date")), title, s.getString("icone", "PAPER"),
-                    List.copyOf(s.getStringList("texte")), command, List.copyOf(click)));
         }
         out.sort(Comparator.comparing(Entree::date).reversed());
         return new Nouveautes(List.copyOf(out));
+    }
+
+    private static Entree entry(String id, ConfigurationSection s) {
+        if (s == null) {
+            throw new IllegalArgumentException(id + " : section attendue");
+        }
+        String title = s.getString("titre", "");
+        if (title.isBlank()) {
+            throw new IllegalArgumentException(id + ".titre manquant");
+        }
+        String command = s.getString("commande", "");
+        List<String> click = s.isList("clic") ? s.getStringList("clic")
+                : !s.getString("clic", "").isBlank() ? List.of(s.getString("clic"))
+                : command.isBlank() ? List.of() : List.of(command);
+        for (String line : click) {
+            try {
+                Action.parse(line);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(id + ".clic : " + e.getMessage());
+            }
+        }
+        boolean lines = s.isList("texte");
+        return new Entree(id, date(id, s.get("date")), title, s.getString("icone", "PAPER"), lines ? "" : s.getString("texte", "").trim(),
+                lines ? List.copyOf(s.getStringList("texte")) : List.of(), command, List.copyOf(click));
     }
 
     /** SnakeYAML lit une date sans guillemets comme un Date à minuit UTC. */
