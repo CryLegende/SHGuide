@@ -1,0 +1,939 @@
+# ======================================================================== #
+#                       SHGuide - Les écrans de Jake                       #
+# ======================================================================== #
+#
+# Chaque écran (section « menus ») s'ouvre avec /guide <écran> (ou /jake <écran>), ou depuis un bouton « [menu] <écran> ».
+# /shguide reload relit ce fichier : s'il est invalide, rien ne change et le message nomme la clé fautive.
+#
+# Un écran :
+#   titre, lignes (1 à 6)
+#   contour, accent            cases des vitres (facultatif) ; sans elles, le bord du menu et les colonnes 2 et 8
+#   contour-sans, accent-sans  cases à laisser libres
+#   phrases                    ce que dit Jake, la première dont les conditions sont vraies remplit {phrase}
+#   boutons                    voir plus bas
+#   zones                      cases remplies par le plugin : taches, piste et paliers (série), nouveautes, etapes (tutoriel)
+#
+# Un bouton (ou un modèle de zone) :
+#   case ou cases    où il se trouve (0 = en haut à gauche). Plusieurs boutons peuvent viser la même case : le premier dont
+#                    les conditions sont vraies est montré.
+#   si               conditions, toutes vraies (« A == B », opérateurs == != >= <= > < et ~ pour une expression régulière)
+#   icone            matériau (CHEST), tête HeadDatabase (PLAYER_HEAD), tête texturée (basehead-<base64>), ou jeton
+#   nom, lore        textes
+#   quantite         nombre affiché sur l'objet
+#   brille, brille-si
+#   clic             actions, dans l'ordre :
+#     [menu] <écran>        ouvre un écran
+#     [recuperer] <cadeau>  tout, jour, palier, palier:7, bienvenue ou demain
+#     [objectif]            lance le clic de l'objectif du moment
+#     [page] 1 / [page] -1  nouveautés, page suivante ou précédente
+#     [fleche]              montre ou cache la flèche du tutoriel
+#     [fermer]              ferme le menu
+#     [console] ... / [message] ... / [son] ...
+#     [joueur] ... ou sans préfixe : commande lancée par le joueur ; le menu se ferme si elle n'en ouvre pas un autre
+#
+# Textes : &a et &#RRGGBB, placeholders PlaceholderAPI, et
+#   {jeton}                     voir la liste
+#   {jeton|tâche|tâches}        « 1 tâche », « 2 tâches »
+#   {barre:nom:&b}              barre de progression, de cette couleur
+#   [si A == B] texte           ligne montrée seulement si la condition est vraie
+#   {bloc} seul sur sa ligne    remplacé par les lignes du bloc
+#   Un placeholder sur plusieurs lignes donne plusieurs lignes ; une ligne qu'il laisse vide disparaît.
+#
+# Jetons partout : joueur, jour (lun à dim), fin_jour (temps avant les nouvelles tâches), nouveau, revenu (après une absence)
+#   taches_faites, taches_total, taches_reste · objectif, objectif_nom, objectif_faire, objectif_icone, objectif_clic
+#   serie, record, joker · palier_jour, palier_reste, palier_gain · cadeaux, cadeaux_jour · jour_etat (ferme, pret, pris)
+#   bienvenue_etat et demain_etat (absent, attente, pret, pris), bienvenue_texte, bienvenue_temps, bienvenue_minutes, demain_texte
+#   nouveautes (pas encore vues), nouveautes_total, page, pages, page_suivante, page_precedente
+#   tuto, tuto_n, tuto_total, tuto_faites, tuto_texte, tuto_cadeau, fleche · phrase
+#   Les jetons oui/non valent « oui » ou « non ».
+# Barres : taches, tuto, bienvenue, tache (zone taches), etape (zone etapes).
+# Blocs : taches_liste, cadeau_pret, cadeau_ferme, cadeau_demain, attente_liste, nouveautes_liste, objectif_description, et
+#   description (zones taches et etapes) ou texte (zone nouveautes).
+# Zones :
+#   taches       faite, en-cours, a-faire, et les voyants voyant-faite, voyant-en-cours, voyant-a-faire (cases « voyants »)
+#                jetons numero, total, texte, icone, actuel, quantite, clic, cliquable
+#   piste        fait, aujourdhui, a-venir, palier (dernière case), palier-fait · jetons jour_piste, gain
+#   paliers      atteint, a-prendre, suivant, loin · jetons jour_palier, gain, reste
+#   nouveautes   nouvelle, vue · jetons titre, icone, date, commande, commande_oui, cliquable
+#   etapes       faite, en-cours, a-venir · jetons numero, total, texte, icone, clic, cliquable
+#
+# ======================================================================== #
+
+# Écran ouvert par /guide, /jake et un clic sur Jake.
+accueil: accueil
+# Ticks laissés à une commande pour ouvrir son propre menu avant que celui de Jake se ferme.
+fermeture-ticks: 6
+
+cadre:
+  contour: BLACK_STAINED_GLASS_PANE
+  accent: CYAN_STAINED_GLASS_PANE
+  # Autre couleur d'accent, la première dont les conditions sont vraies.
+  accents:
+    cadeau:
+      si:
+        - "{cadeaux} >= 1"
+      objet: LIME_STAINED_GLASS_PANE
+
+barre:
+  cases: 10
+  pleine: "■"
+  vide: "&8■"
+
+# Lignes des blocs de liste.
+listes:
+  # taches_liste : {texte} {actuel} {quantite}, {seul} = oui pour une tâche à faire une seule fois
+  tache-faite:
+    - " &a✔ &7{texte}"
+  tache-en-cours:
+    - " &8• &f{texte} &8(&f{actuel}&7/&f{quantite}&8)"
+  tache-a-faire:
+    - "[si {seul} == oui]  &8• &f{texte}"
+    - "[si {seul} == non]  &8• &f{texte} &8(&f{actuel}&7/&f{quantite}&8)"
+  # cadeau_pret et attente_liste, cadeau_ferme, cadeau_demain : {texte}
+  cadeau-pret:
+    - " &a• &f{texte}"
+  cadeau-ferme:
+    - " &6• &f{texte}"
+  cadeau-demain:
+    - " &8• &f{texte}"
+  # nouveautes_liste : {texte}
+  nouveaute-nouvelle:
+    - " &e✦ &f{texte}"
+  nouveaute-vue:
+    - " &8• &f{texte}"
+
+menus:
+  # ---------------------------------------------------------------------- Accueil
+  accueil:
+    titre: "&8&lJake &8| Votre guide"
+    lignes: 5
+    phrases:
+      cadeau:
+        si:
+          - "{cadeaux} >= 1"
+        texte: "Bravo {joueur}, un cadeau vous attend !"
+      revenu:
+        si:
+          - "{revenu} == oui"
+        texte: "Content de vous revoir, {joueur} !"
+      tutoriel:
+        si:
+          - "{tuto} == oui"
+        texte: "Bienvenue {joueur}, je vous montre les bases !"
+      fini:
+        si:
+          - "{taches_reste} == 0"
+        texte: "Bien joué {joueur}, revenez demain !"
+      debut:
+        si:
+          - "{taches_faites} == 0"
+        texte: "Bonjour {joueur}, voici votre journée !"
+      milieu:
+        texte: "Courage {joueur}, plus que {taches_reste|tâche|tâches} !"
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &f{phrase} &8&l»"
+          - ""
+          - " &b➜ &f{objectif_faire}"
+          - "[si {tuto} == oui]  &a• &f{tuto_faites}&7/&f{tuto_total} &7étapes faites"
+          - "[si {tuto} == non]  &b• &f{taches_faites}&7/&f{taches_total} &7tâches du jour faites"
+          - "[si {serie} >= 1]  &6• &7Série de &f{serie|jour|jours}"
+          - "[si {bienvenue_etat} == attente]  &6• &7Cadeau de bienvenue dans &f{bienvenue_temps}"
+          - "[si {cadeaux} >= 1]  &a• &f{cadeaux|cadeau|cadeaux} &7à récupérer"
+          - "[si {nouveautes} >= 1]  &e• &f{nouveautes|nouveauté|nouveautés} &7à découvrir"
+      objectif:
+        case: 13
+        si:
+          - "{tuto} == non"
+        icone: COMPASS
+        nom: "&bObjectif du moment"
+        lore:
+          - ""
+          - "&8&l« &7Ce que Jake vous conseille"
+          - "&7de faire maintenant. &8&l»"
+          - ""
+          - "[si {objectif_nom} != ]  &b➜ &f{objectif_nom}"
+          - "[si {objectif_nom} != ]    &7{objectif_faire}"
+          - "[si {objectif_nom} == ]  &b➜ &f{objectif}"
+          - "{objectif_description}"
+          - ""
+          - "[si {objectif_clic} == oui] &7&o(( &b&oCliquez pour y aller &7&o))"
+        clic:
+          - "[objectif]"
+      # Pendant le tutoriel, l'objectif laisse une place aux premiers pas.
+      objectif-tutoriel:
+        case: 12
+        si:
+          - "{tuto} == oui"
+        icone: COMPASS
+        nom: "&bObjectif du moment"
+        lore:
+          - ""
+          - "&8&l« &7Ce que Jake vous conseille"
+          - "&7de faire maintenant. &8&l»"
+          - ""
+          - " &b➜ &f{objectif}"
+          - "{objectif_description}"
+          - ""
+          - "[si {objectif_clic} == oui] &7&o(( &b&oCliquez pour y aller &7&o))"
+        clic:
+          - "[objectif]"
+      premiers-pas:
+        case: 14
+        si:
+          - "{tuto} == oui"
+        icone: OAK_SAPLING
+        nom: "&aVos premiers pas"
+        lore:
+          - ""
+          - "&8&l« &7Les {tuto_total} étapes pour bien démarrer,"
+          - "&7avec un cadeau à la fin. &8&l»"
+          - ""
+          - " &a• &f{tuto_faites}&7/&f{tuto_total} &7étapes faites"
+          - " {barre:tuto:&a}"
+          - ""
+          - "&7&o(( &a&oCliquez pour voir les étapes &7&o))"
+        clic:
+          - "[menu] premiers-pas"
+      taches:
+        case: 20
+        icone: CLOCK
+        nom: "&bVos tâches du jour"
+        quantite: "{taches_reste}"
+        brille-si:
+          - "{taches_reste} == 0"
+        lore:
+          - ""
+          - "&8&l« &7Des tâches simples, à faire"
+          - "&7quand vous voulez. &8&l»"
+          - ""
+          - "{taches_liste}"
+          - ""
+          - "&7Nouvelles tâches dans &b{fin_jour}"
+          - ""
+          - "&7&o(( &b&oCliquez pour voir vos tâches &7&o))"
+        clic:
+          - "[menu] taches"
+      recompenses-pretes:
+        case: 22
+        si:
+          - "{cadeaux} >= 1"
+        icone: LIME_BUNDLE
+        nom: "&a&lUn cadeau vous attend !"
+        quantite: "{cadeaux}"
+        lore:
+          - ""
+          - "{attente_liste}"
+          - ""
+          - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+        clic:
+          - "[menu] recompenses"
+      recompenses:
+        case: 22
+        icone: CHEST
+        nom: "&6Vos récompenses"
+        lore:
+          - ""
+          - "&8&l« &7Le cadeau du jour et"
+          - "&7les paliers de votre série. &8&l»"
+          - ""
+          - "[si {bienvenue_etat} == attente]  &e• &7Cadeau de bienvenue dans &f{bienvenue_temps}"
+          - "[si {demain_etat} == attente]  &b• &f{demain_texte} &7demain"
+          - "[si {jour_etat} == ferme]  &6• &7Encore &f{taches_reste|tâche|tâches} &7avant le cadeau"
+          - "[si {jour_etat} == pris]  &a✔ &7Cadeau du jour récupéré"
+          - "[si {serie} >= 1]  &6• &7Série de &f{serie|jour|jours}&7, palier dans &f{palier_reste|jour|jours}"
+          - ""
+          - "&7&o(( &6&oCliquez pour voir vos récompenses &7&o))"
+        clic:
+          - "[menu] recompenses"
+      nouveautes:
+        case: 24
+        icone: BELL
+        nom: "&eNouveautés"
+        quantite: "{nouveautes}"
+        brille-si:
+          - "{nouveautes} >= 1"
+        lore:
+          - ""
+          - "[si {nouveautes} >= 1] &8&l« &7Ce que vous n'avez pas encore vu. &8&l»"
+          - "[si {nouveautes} == 0] &8&l« &7Ce qui a changé ces derniers jours. &8&l»"
+          - ""
+          - "{nouveautes_liste}"
+          - ""
+          - "&7&o(( &e&oCliquez pour tout voir &7&o))"
+        clic:
+          - "[menu] nouveautes"
+      aide:
+        case: 29
+        icone: KNOWLEDGE_BOOK
+        nom: "&3Comment faire ?"
+        lore:
+          - ""
+          - "&8&l« &7Les réponses aux questions"
+          - "&7les plus posées. &8&l»"
+          - ""
+          - "&7&o(( &3&oCliquez pour ouvrir &7&o))"
+        clic:
+          - "[menu] aide"
+      ile:
+        case: 31
+        icone: GRASS_BLOCK
+        nom: "&aMenu de votre île"
+        lore:
+          - ""
+          - "&8&l« &7Téléportation, quêtes, membres"
+          - "&7et améliorations de votre &aîle&7. &8&l»"
+          - ""
+          - "&7&nCommande:&a /is"
+          - ""
+          - "&7&o(( &a&oCliquez pour ouvrir &7&o))"
+        clic:
+          - "is"
+      reglages:
+        case: 44
+        icone: COMPARATOR
+        nom: "&7Réglages de Jake"
+        lore:
+          - ""
+          - "&8&l« &7Déplacez Jake, changez son"
+          - "&7apparence ou cachez-le. &8&l»"
+          - ""
+          - "&7&o(( &7&oCliquez pour ouvrir &7&o))"
+        clic:
+          - "jake reglages"
+
+  # ---------------------------------------------------------------------- Tâches du jour
+  taches:
+    titre: "&8&lJake &8| Tâches du jour"
+    lignes: 5
+    phrases:
+      cadeau:
+        si:
+          - "{jour_etat} == pret"
+        texte: "Tout est fait, votre cadeau est prêt !"
+      fini:
+        si:
+          - "{taches_reste} == 0"
+        texte: "Tout est fait, revenez demain !"
+      debut:
+        si:
+          - "{taches_faites} == 0"
+        texte: "Choisissez par laquelle commencer !"
+      milieu:
+        texte: "Plus que {taches_reste|tâche|tâches}, continuez !"
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &f{phrase} &8&l»"
+      programme:
+        case: 13
+        icone: CLOCK
+        nom: "&bTâches du jour"
+        quantite: "{taches_reste}"
+        lore:
+          - ""
+          - "&8&l« &7Finissez les {taches_total} tâches pour gagner"
+          - "&7le cadeau et faire grimper la série. &8&l»"
+          - ""
+          - " &b• &f{taches_faites}&7/&f{taches_total} &7tâches faites"
+          - " {barre:taches:&b}"
+          - ""
+          - "&7Nouvelles tâches dans &b{fin_jour}"
+      cadeau-pret:
+        case: 31
+        si:
+          - "{jour_etat} == pret"
+        icone: LIME_BUNDLE
+        nom: "&a&lCadeau du jour"
+        lore:
+          - ""
+          - "{cadeau_pret}"
+          - ""
+          - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+        clic:
+          - "[recuperer] jour"
+      cadeau-pris:
+        case: 31
+        si:
+          - "{jour_etat} == pris"
+        icone: LIGHT_GRAY_BUNDLE
+        nom: "&7Cadeau du jour récupéré"
+        lore:
+          - ""
+          - "&7Demain"
+          - "{cadeau_demain}"
+          - ""
+          - "&7&o(( &7&oCliquez pour voir vos récompenses &7&o))"
+        clic:
+          - "[menu] recompenses"
+      cadeau:
+        case: 31
+        icone: BUNDLE
+        nom: "&6Cadeau du jour"
+        lore:
+          - ""
+          - "&8&l« &7Finissez les &6{taches_total} tâches &7pour le gagner. &8&l»"
+          - ""
+          - "{cadeau_ferme}"
+          - ""
+          - "&7&o(( &6&oCliquez pour voir vos récompenses &7&o))"
+        clic:
+          - "[menu] recompenses"
+      retour:
+        case: 36
+        icone: PAPER
+        nom: "&c⤾ Retour &7(Clic)"
+        clic:
+          - "[menu] accueil"
+    zones:
+      taches:
+        cases:
+          - 20
+          - 21
+          - 23
+          - 24
+        voyants:
+          - 29
+          - 30
+          - 32
+          - 33
+        faite:
+          icone: "{icone}"
+          nom: "&a✔ {texte}"
+          brille: true
+          lore:
+            - "&8Tâche {numero}/{total}"
+            - ""
+            - "{description}"
+            - ""
+            - " &a• &7Faite, bravo !"
+            - " {barre:tache:&a}"
+        en-cours:
+          icone: "{icone}"
+          nom: "&b{texte}"
+          lore:
+            - "&8Tâche {numero}/{total}"
+            - ""
+            - "{description}"
+            - ""
+            - " &b• &f{actuel} &7sur &f{quantite}"
+            - " {barre:tache:&b}"
+            - ""
+            - "[si {cliquable} == oui] &7&o(( &b&oCliquez pour y aller &7&o))"
+          clic:
+            - "{clic}"
+        a-faire:
+          icone: "{icone}"
+          nom: "&b{texte}"
+          lore:
+            - "&8Tâche {numero}/{total}"
+            - ""
+            - "{description}"
+            - ""
+            - " &b• &f{actuel} &7sur &f{quantite}"
+            - " {barre:tache:&b}"
+            - ""
+            - "[si {cliquable} == oui] &7&o(( &b&oCliquez pour y aller &7&o))"
+          clic:
+            - "{clic}"
+        voyant-faite:
+          icone: LIME_STAINED_GLASS_PANE
+          nom: "&a✔ Faite"
+        voyant-en-cours:
+          icone: YELLOW_STAINED_GLASS_PANE
+          nom: "&eEn cours &8(&f{actuel}&7/&f{quantite}&8)"
+        voyant-a-faire:
+          icone: GRAY_STAINED_GLASS_PANE
+          nom: "&7À faire"
+
+  # ---------------------------------------------------------------------- Récompenses
+  recompenses:
+    titre: "&8&lJake &8| Récompenses"
+    lignes: 5
+    accent-sans:
+      - 19
+      - 25
+    phrases:
+      cadeau:
+        si:
+          - "{cadeaux} >= 1"
+        texte: "Servez-vous, c'est pour vous !"
+      bienvenue:
+        si:
+          - "{bienvenue_etat} == attente"
+        texte: "Encore {bienvenue_temps} avant votre cadeau !"
+      pris:
+        si:
+          - "{jour_etat} == pris"
+        texte: "Vous avez tout pris, revenez demain !"
+      ferme:
+        texte: "Encore {taches_reste|tâche|tâches} et le cadeau est à vous !"
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &f{phrase} &8&l»"
+      # Cadeaux des nouveaux joueurs, de chaque côté du cadeau du jour.
+      bienvenue-pret:
+        case: 11
+        si:
+          - "{bienvenue_etat} == pret"
+        icone: LIME_BUNDLE
+        nom: "&a&lCadeau de bienvenue"
+        lore:
+          - ""
+          - " &a• &f{bienvenue_texte}"
+          - ""
+          - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+        clic:
+          - "[recuperer] bienvenue"
+      bienvenue-attente:
+        case: 11
+        si:
+          - "{bienvenue_etat} == attente"
+        icone: YELLOW_BUNDLE
+        nom: "&eCadeau de bienvenue"
+        lore:
+          - ""
+          - "&8&l« &7Jouez &e{bienvenue_minutes} minutes &7pour le recevoir. &8&l»"
+          - ""
+          - " &e• &f{bienvenue_texte}"
+          - " &e• &7Encore &f{bienvenue_temps}"
+          - " {barre:bienvenue:&e}"
+      bienvenue-pris:
+        case: 11
+        si:
+          - "{bienvenue_etat} == pris"
+        icone: LIGHT_GRAY_BUNDLE
+        nom: "&7Cadeau de bienvenue récupéré"
+      demain-pret:
+        case: 15
+        si:
+          - "{demain_etat} == pret"
+        icone: LIME_BUNDLE
+        nom: "&a&lCadeau du lendemain"
+        lore:
+          - ""
+          - " &a• &f{demain_texte}"
+          - ""
+          - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+        clic:
+          - "[recuperer] demain"
+      demain-attente:
+        case: 15
+        si:
+          - "{demain_etat} == attente"
+        icone: LIGHT_BLUE_BUNDLE
+        nom: "&bCadeau de demain"
+        lore:
+          - ""
+          - "&8&l« &7Revenez demain pour le recevoir. &8&l»"
+          - ""
+          - " &b• &f{demain_texte}"
+      # Cadeau du jour.
+      jour-pret:
+        case: 13
+        si:
+          - "{jour_etat} == pret"
+        icone: LIME_BUNDLE
+        nom: "&a&lCadeau du jour"
+        quantite: "{cadeaux_jour}"
+        lore:
+          - ""
+          - "{cadeau_pret}"
+          - ""
+          - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+        clic:
+          - "[recuperer] jour"
+      jour-pris:
+        case: 13
+        si:
+          - "{jour_etat} == pris"
+        icone: LIGHT_GRAY_BUNDLE
+        nom: "&7Cadeau du jour récupéré"
+        lore:
+          - ""
+          - "&7Demain"
+          - "{cadeau_demain}"
+          - ""
+          - "&7Nouvelles tâches dans &b{fin_jour}"
+      jour-ferme:
+        case: 13
+        icone: BUNDLE
+        nom: "&6Cadeau du jour"
+        lore:
+          - ""
+          - "&8&l« &7Finissez les &6{taches_total} tâches &7pour le gagner. &8&l»"
+          - ""
+          - " &6• &f{taches_faites}&7/&f{taches_total} &7tâches faites"
+          - ""
+          - "&7Aujourd'hui"
+          - "{cadeau_ferme}"
+          - ""
+          - "&7Demain"
+          - "{cadeau_demain}"
+          - ""
+          - "&7&o(( &6&oCliquez pour voir vos tâches &7&o))"
+        clic:
+          - "[menu] taches"
+      serie:
+        case: 31
+        icone: CAMPFIRE
+        si:
+          - "{serie} >= 1"
+        nom: "&6Série de {serie|jour|jours}"
+        quantite: "{serie}"
+        lore:
+          - ""
+          - "&8&l« &7Finissez vos tâches chaque jour"
+          - "&7pour faire grimper votre série. &8&l»"
+          - ""
+          - " &6• &7Votre record est de &f{record|jour|jours}"
+          - ""
+          - "[si {joker} == oui] &a✔ &7Joker disponible, un jour raté"
+          - "[si {joker} == oui] &7cette semaine ne casse pas la série."
+          - "[si {joker} == non] &8✘ &7Joker déjà utilisé cette semaine,"
+          - "[si {joker} == non] &7un jour raté remet la série à zéro."
+      serie-vide:
+        case: 31
+        icone: CAMPFIRE
+        nom: "&6Pas encore de série"
+        lore:
+          - ""
+          - "&8&l« &7Finissez vos tâches chaque jour"
+          - "&7pour faire grimper votre série. &8&l»"
+          - ""
+          - "[si {record} >= 1]  &6• &7Votre record est de &f{record|jour|jours}"
+          - ""
+          - "&a✔ &7Un jour raté par semaine est pardonné"
+          - "&7grâce à votre joker."
+      tout:
+        case: 40
+        si:
+          - "{cadeaux} >= 2"
+        icone: LIME_DYE
+        nom: "&aTout récupérer"
+        quantite: "{cadeaux}"
+        lore:
+          - ""
+          - "{attente_liste}"
+          - ""
+          - "&7&o(( &a&oCliquez pour tout récupérer &7&o))"
+        clic:
+          - "[recuperer] tout"
+      retour:
+        case: 36
+        icone: PAPER
+        nom: "&c⤾ Retour &7(Clic)"
+        clic:
+          - "[menu] accueil"
+    zones:
+      # Les jours jusqu'au prochain palier, une case par jour.
+      piste:
+        cases:
+          - 19
+          - 20
+          - 21
+          - 22
+          - 23
+          - 24
+          - 25
+        fait:
+          icone: LIME_STAINED_GLASS_PANE
+          nom: "&a✔ Jour {jour_piste}"
+        aujourdhui:
+          icone: YELLOW_STAINED_GLASS_PANE
+          nom: "&eJour {jour_piste}, aujourd'hui"
+          lore:
+            - ""
+            - "&7Finissez vos tâches du jour."
+        a-venir:
+          icone: GRAY_STAINED_GLASS_PANE
+          nom: "&7Jour {jour_piste}"
+        palier:
+          icone: TRIPWIRE_HOOK
+          nom: "&6Jour {jour_piste}"
+          lore:
+            - ""
+            - " &6• &f{gain}"
+        palier-fait:
+          icone: TRIPWIRE_HOOK
+          nom: "&a✔ Jour {jour_piste}"
+          brille: true
+          lore:
+            - ""
+            - " &a• &f{gain}"
+      # Les paliers du cycle.
+      paliers:
+        cases:
+          - 29
+          - 30
+          - 32
+          - 33
+        a-prendre:
+          icone: LIME_BUNDLE
+          nom: "&a&lPalier de {jour_palier} jours"
+          lore:
+            - ""
+            - " &a• &f{gain}"
+            - ""
+            - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
+          clic:
+            - "[recuperer] palier:{jour_palier}"
+        atteint:
+          icone: LIME_DYE
+          nom: "&a✔ Palier de {jour_palier} jours"
+          lore:
+            - ""
+            - " &a• &f{gain}"
+        suivant:
+          icone: TRIPWIRE_HOOK
+          nom: "&6Palier de {jour_palier} jours"
+          quantite: "{reste}"
+          brille: true
+          lore:
+            - "&8Prochain palier"
+            - ""
+            - " &6• &7Vous gagnez &f{gain}"
+            - " &6• &7Encore &f{reste|jour|jours}"
+        loin:
+          icone: TRIPWIRE_HOOK
+          nom: "&7Palier de {jour_palier} jours"
+          lore:
+            - ""
+            - " &8• &7Vous gagnez &f{gain}"
+            - " &8• &7Encore &f{reste|jour|jours}"
+
+  # ---------------------------------------------------------------------- Nouveautés
+  nouveautes:
+    titre: "&8&lJake &8| Nouveautés"
+    lignes: 5
+    phrases:
+      nouvelles:
+        si:
+          - "{nouveautes} >= 1"
+        texte: "{nouveautes|nouveauté|nouveautés} à découvrir !"
+      rien:
+        si:
+          - "{nouveautes_total} == 0"
+        texte: "Rien de neuf pour l'instant !"
+      vues:
+        texte: "Vous avez tout vu, à bientôt !"
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &f{phrase} &8&l»"
+      retour:
+        case: 36
+        icone: PAPER
+        nom: "&c⤾ Retour &7(Clic)"
+        clic:
+          - "[menu] accueil"
+      precedente:
+        case: 39
+        si:
+          - "{page_precedente} == oui"
+        icone: ARROW
+        nom: "&ePage {page}/{pages} &7(précédente)"
+        clic:
+          - "[page] -1"
+      suivante:
+        case: 41
+        si:
+          - "{page_suivante} == oui"
+        icone: ARROW
+        nom: "&ePage {page}/{pages} &7(suivante)"
+        clic:
+          - "[page] 1"
+    zones:
+      nouveautes:
+        cases:
+          - 11
+          - 12
+          - 13
+          - 14
+          - 15
+          - 20
+          - 21
+          - 22
+          - 23
+          - 24
+          - 29
+          - 30
+          - 31
+          - 32
+          - 33
+        nouvelle:
+          icone: "{icone}"
+          nom: "&e✦ {titre}"
+          brille: true
+          lore:
+            - "&8Nouveau, {date}"
+            - ""
+            - "{texte}"
+            - ""
+            - "[si {commande_oui} == oui] &7&nCommande:&e {commande}"
+            - ""
+            - "[si {cliquable} == oui] &7&o(( &e&oCliquez pour essayer &7&o))"
+        vue:
+          icone: "{icone}"
+          nom: "&f{titre}"
+          lore:
+            - "&8{date}"
+            - ""
+            - "{texte}"
+            - ""
+            - "[si {commande_oui} == oui] &7&nCommande:&e {commande}"
+            - ""
+            - "[si {cliquable} == oui] &7&o(( &e&oCliquez pour essayer &7&o))"
+
+  # ---------------------------------------------------------------------- Comment faire ?
+  aide:
+    titre: "&8&lJake &8| Comment faire ?"
+    lignes: 5
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &fUne question ? La réponse est ici. &8&l»"
+      ile:
+        case: 11
+        icone: GRASS_BLOCK
+        nom: "&aRetourner sur mon île"
+        lore:
+          - ""
+          - "&8&l« &7Vous téléporte sur votre île. &8&l»"
+          - ""
+          - "&7&nCommande:&a /is go"
+          - ""
+          - "&7&o(( &a&oCliquez pour vous téléporter &7&o))"
+        clic:
+          - "[fermer]"
+          - "is go"
+      xp:
+        case: 23
+        icone: EXPERIENCE_BOTTLE
+        nom: "&aGagner de l'XP"
+        lore:
+          - ""
+          - "&8&l« &7Le minage, l'agriculture et"
+          - "&7les box rapportent de l'XP. &8&l»"
+      retour:
+        case: 36
+        icone: PAPER
+        nom: "&c⤾ Retour &7(Clic)"
+        clic:
+          - "[menu] accueil"
+
+  # ---------------------------------------------------------------------- Premiers pas (tutoriel)
+  premiers-pas:
+    titre: "&8&lJake &8| Premiers pas"
+    lignes: 5
+    phrases:
+      cours:
+        si:
+          - "{tuto} == oui"
+        texte: "Étape {tuto_n} sur {tuto_total}, continuez comme ça !"
+      fini:
+        texte: "Vous connaissez les bases, bravo !"
+    boutons:
+      jake:
+        case: 4
+        icone: PLAYER_HEAD
+        nom: "&eJake, votre guide"
+        lore:
+          - ""
+          - "&8&l« &f{phrase} &8&l»"
+      fin:
+        case: 31
+        si:
+          - "{tuto} == oui"
+        icone: BUNDLE
+        nom: "&6Cadeau de fin"
+        lore:
+          - ""
+          - "&8&l« &7Finissez les {tuto_total} étapes. &8&l»"
+          - ""
+          - " &6• &f{tuto_cadeau}"
+      fin-pris:
+        case: 31
+        icone: LIGHT_GRAY_BUNDLE
+        nom: "&7Cadeau de fin récupéré"
+      fleche:
+        case: 44
+        si:
+          - "{tuto} == oui"
+        icone: SPECTRAL_ARROW
+        nom: "&eFlèche du tutoriel"
+        lore:
+          - ""
+          - "&8&l« &7Elle montre le chemin vers"
+          - "&7l'étape en cours. &8&l»"
+          - ""
+          - "[si {fleche} == oui]  &e• &7Elle est &aaffichée"
+          - "[si {fleche} == non]  &e• &7Elle est &ccachée"
+          - ""
+          - "[si {fleche} == oui] &7&o(( &e&oCliquez pour la cacher &7&o))"
+          - "[si {fleche} == non] &7&o(( &e&oCliquez pour l'afficher &7&o))"
+        clic:
+          - "[fleche]"
+      retour:
+        case: 36
+        icone: PAPER
+        nom: "&c⤾ Retour &7(Clic)"
+        clic:
+          - "[menu] accueil"
+    zones:
+      etapes:
+        cases:
+          - 11
+          - 12
+          - 13
+          - 14
+          - 15
+          - 21
+          - 22
+          - 23
+        faite:
+          icone: LIME_DYE
+          nom: "&a✔ {texte}"
+          lore:
+            - "&8Étape {numero}/{total}"
+        en-cours:
+          icone: "{icone}"
+          nom: "&b{texte}"
+          brille: true
+          lore:
+            - "&8Étape {numero}/{total}, en cours"
+            - ""
+            - "{description}"
+            - ""
+            - " {barre:etape:&b}"
+            - ""
+            - "[si {cliquable} == oui] &7&o(( &b&oCliquez pour y aller &7&o))"
+          clic:
+            - "{clic}"
+        a-venir:
+          icone: "{icone}"
+          nom: "&7{texte}"
+          lore:
+            - "&8Étape {numero}/{total}"

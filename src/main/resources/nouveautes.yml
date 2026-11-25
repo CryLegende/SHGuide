@@ -1,0 +1,27 @@
+# ======================================================================== #
+#                          SHGuide - Les nouveautés                        #
+# ======================================================================== #
+#
+# Une entrée par nouveauté, montrée dans l'écran « Nouveautés » de Jake (les plus récentes d'abord, puis l'ordre du fichier)
+# et dans le dialogue d'un joueur revenu après une absence. /shguide reload relit ce fichier.
+#
+#   date       jour de sortie (2026-11-24) ; avant ce jour, personne ne la voit
+#   titre      une ligne courte
+#   icone      matériau (CHEST), tête HeadDatabase (hdb-81626) ou tête texturée (basehead-<base64>)
+#   texte      une ou deux lignes
+#   commande   affichée, et lancée au clic (facultatif)
+#   clic       actions du clic si ce n'est pas la commande (mêmes actions que menus.yml, facultatif)
+#
+# Elle brille tant que le joueur ne l'a pas vue (nouveautes-recentes-jours dans config.yml, 30 jours au plus). Changer sa clé
+# la rend de nouveau « pas vue » pour tout le monde.
+#
+# ======================================================================== #
+
+guide:
+  date: "2026-11-23"
+  titre: "Jake devient votre guide"
+  icone: PLAYER_HEAD
+  texte:
+    - "&8&l« &7Objectif, tâches du jour, récompenses"
+    - "&7et nouveautés au même endroit. &8&l»"
+  commande: "/guide"

@@ -16,20 +16,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 
-/** Menu de Jake (45 cases) et sous-menu « Comment faire… ». */
+/** Les écrans de Jake : construits à l'ouverture d'après menus.yml, redessinés sur place après un clic qui change leur contenu. */
 final class GuideMenu {
 
-    /** Colonnes 2 à 6 des rangées 2 et 3 : les colonnes 1 et 7 portent l'accent. */
-    private static final int[] HELP_CELLS = {20, 21, 22, 23, 24, 29, 30, 31, 32, 33};
-    private static final int HELP_BACK = 36;
+    /** Plus grande pile affichée : au-delà, le jeu n'a plus la place d'écrire le nombre. */
+    private static final int MAX_AMOUNT = 99;
 
     private GuideMenu() {
     }
 
-    private abstract static class Holder implements InventoryHolder {
-        final Map<Integer, Runnable> actions = new HashMap<>();
+    private static final class Holder implements InventoryHolder {
+        final String screen;
+        int page;
+        Map<Integer, List<String>> clicks = Map.of();
+        Texte.Contexte ctx;
         Inventory inv;
+
+        Holder(String screen) {
+            this.screen = screen;
+        }
 
         @Override
         public Inventory getInventory() {
@@ -37,297 +44,355 @@ final class GuideMenu {
         }
     }
 
-    static final class Main extends Holder {
+    static boolean isOurs(Inventory inv) {
+        return inv != null && inv.getHolder(false) instanceof Holder;
     }
 
-    static final class Help extends Holder {
-    }
-
+    /** L'accueil. */
     static void open(SHGuide plugin, Player p) {
+        open(plugin, p, plugin.menus().home(), 0);
+    }
+
+    static void open(SHGuide plugin, Player p, String screenId, int page) {
         Programme.Tick t = plugin.sessions().refresh(p);
         Sessions.Session s = plugin.sessions().get(p.getUniqueId());
         if (t == null || s == null) {
             plugin.messages().send(p, "chargement");
             return;
         }
-        Settings cfg = plugin.settings();
-        Messages m = plugin.messages();
-        LocalDate today = plugin.today();
-        Main holder = new Main();
-        holder.inv = Bukkit.createInventory(holder, 45, Messages.item(m.text("menu.titre")));
-        frame(holder.inv, cfg);
-
-        long left = t.tasks().stream().filter(v -> !v.done()).count();
-        int total = t.tasks().size();
-        int serie = Streak.display(s.state, today);
-        String phraseKey = !s.state.pending.isEmpty() ? "phrase-prete"
-                : left == 0 ? "phrase-fini" : left == total ? "phrase-debut" : "phrase-encours";
-        String phrase = m.text("menu.jake." + phraseKey, "joueur", p.getName(), "reste", Long.toString(left));
-        holder.inv.setItem(slot(cfg, "jake"), item(icon(cfg, "jake", "PLAYER_HEAD"), m.text("menu.jake.nom"),
-                m.lore("menu.jake.lore", Map.of(), "phrase", phrase, "serie", Integer.toString(serie),
-                        "total", Integer.toString(total), "joueur", p.getName())));
-
-        Objectives.Choice c = s.objective;
-        String objText = c == null ? m.text("objectif.aucun") : c.text();
-        boolean objClick = c != null && !c.click().isEmpty();
-        Map<String, List<String>> objBlocks = new HashMap<>();
-        objBlocks.put("description", c == null ? List.of() : c.lore());
-        objBlocks.put("clic", objClick ? m.block("menu.objectif.clic") : List.of());
-        holder.inv.setItem(slot(cfg, "objectif"), item(c == null ? icon(cfg, "objectif", "COMPASS") : c.icon(),
-                m.text("menu.objectif.nom"), m.lore("menu.objectif.lore", objBlocks, "texte", objText)));
-        if (objClick) {
-            String click = c.click();
-            holder.actions.put(slot(cfg, "objectif"), () -> {
-                if (click.equalsIgnoreCase("guide")) {
-                    open(plugin, p);
-                } else {
-                    p.closeInventory();
-                    plugin.runCommands(p, List.of(click));
-                }
-            });
+        MenusConfig menus = plugin.menus();
+        MenusConfig.Ecran screen = menus.screen(screenId);
+        if (screen == null) {
+            screen = menus.screen(menus.home());
         }
-
-        String doneIcon = icon(cfg, "fait", "");
-        for (int i = 0; i < total && i < cfg.taskSlots().size(); i++) {
-            Programme.TaskView v = t.tasks().get(i);
-            boolean click = !v.done() && !v.def().click().isEmpty();
-            Map<String, List<String>> blocks = new HashMap<>();
-            blocks.put("description", v.def().description());
-            blocks.put("clic", click ? m.block("menu.tache.clic") : m.block("menu.tache.sans-clic"));
-            String[] repl = {"texte", v.text(), "actuel", Num.format(Math.min(v.current(), v.goal())),
-                    "objectif", Num.format(v.goal()), "barre", bar(m, v.current(), v.goal()),
-                    "numero", Integer.toString(i + 1), "total", Integer.toString(total)};
-            String state = v.done() ? "-fait" : "";
-            ItemStack it = item(v.done() && !doneIcon.isEmpty() ? doneIcon : v.def().icon(),
-                    m.text("menu.tache.nom" + state, repl), m.lore("menu.tache.lore" + state, blocks, repl));
-            if (v.done() && doneIcon.isEmpty()) {
-                glint(it);
-            }
-            int slot = cfg.taskSlots().get(i);
-            holder.inv.setItem(slot, it);
-            if (click) {
-                String command = v.def().click();
-                holder.actions.put(slot, () -> {
-                    p.closeInventory();
-                    plugin.runCommands(p, List.of(command));
-                });
-            }
-        }
-
-        boolean ready = !s.state.pending.isEmpty();
-        String key = ready ? "prete" : s.state.completed ? "prise" : "fermee";
-        // Seulement un cadeau d'accueil à prendre : le coffre ne parle pas des tâches du jour.
-        String textKey = ready && s.state.pending.stream().allMatch(id -> id.startsWith("accueil:")) ? "prete-accueil" : key;
-        String[] rewardRepl = {"faites", Long.toString(total - left), "total", Integer.toString(total)};
-        String todayGain;
-        if (ready) {
-            List<String> texts = new ArrayList<>();
-            for (String id : s.state.pending) {
-                String txt = pendingText(plugin, id);
-                if (!txt.isEmpty() && !texts.contains(txt)) {
-                    texts.add(txt);
-                }
-            }
-            todayGain = String.join("&7, ", texts);
+        Holder open = p.getOpenInventory().getTopInventory().getHolder(false) instanceof Holder h
+                && h.screen.equals(screen.id()) && h.inv.getSize() == screen.size() ? h : null;
+        Holder holder = open != null ? open : new Holder(screen.id());
+        holder.page = Math.max(0, page);
+        Dessin d = new Dessin(plugin, p, s, t, screen, holder);
+        ItemStack[] items = d.draw();
+        holder.clicks = d.clicks;
+        holder.ctx = d.ctx;
+        if (open == null) {
+            holder.inv = Bukkit.createInventory(holder, screen.size(), Messages.item(Texte.line(screen.title(), d.ctx)));
+            holder.inv.setContents(items);
+            p.openInventory(holder.inv);
+            plugin.sound(p, "ouverture");
         } else {
-            Settings.DailyVariant v = cfg.variantFor(today);
-            todayGain = v == null ? "" : v.text();
+            holder.inv.setContents(items);
         }
-        Settings.DailyVariant tomorrowGain = cfg.variantFor(today.plusDays(1));
-        Map<String, List<String>> rewardBlocks = new HashMap<>();
-        rewardBlocks.put("gain", todayGain.isEmpty() ? List.of() : m.block("menu.recompense.gain", "gain", todayGain));
-        rewardBlocks.put("demain", tomorrowGain == null ? List.of()
-                : m.block("menu.recompense.demain", "gain", tomorrowGain.text()));
-        AccueilConfig ac = cfg.accueil();
-        boolean welcomeTomorrow = ac.enabled() && Accueil.daysSinceFirst(s.state, today) == 0
-                && !s.state.welcome.contains("demain") && !ac.tomorrow().commands().isEmpty();
-        rewardBlocks.put("accueil-demain", welcomeTomorrow
-                ? m.block("menu.recompense.accueil-demain", "gain", ac.tomorrow().text()) : List.of());
-        ItemStack reward = item(icon(cfg, "recompense-" + key, "CHEST"), m.text("menu.recompense.nom-" + textKey, rewardRepl),
-                m.lore("menu.recompense.lore-" + textKey, rewardBlocks, "faites", Long.toString(total - left),
-                        "total", Integer.toString(total), "gain", todayGain));
-        if (ready) {
-            glint(reward);
-            holder.actions.put(slot(cfg, "recompense"), () -> {
-                claim(plugin, p);
-                open(plugin, p);
-            });
-        }
-        holder.inv.setItem(slot(cfg, "recompense"), reward);
+        seen(plugin, p, s);
+    }
 
-        holder.inv.setItem(slot(cfg, "aide"), item(icon(cfg, "aide", "BOOK"), m.text("menu.aide.nom"),
-                m.lore("menu.aide.lore", Map.of())));
-        holder.actions.put(slot(cfg, "aide"), () -> openHelp(plugin, p));
-        holder.inv.setItem(slot(cfg, "ile"), item(icon(cfg, "ile", "GRASS_BLOCK"), m.text("menu.ile.nom"),
-                m.lore("menu.ile.lore", Map.of())));
-        holder.actions.put(slot(cfg, "ile"), () -> {
-            p.closeInventory();
-            plugin.runCommands(p, List.of(cfg.islandCommand()));
-        });
-        holder.inv.setItem(slot(cfg, "reglages"), item(icon(cfg, "reglages", "COMPARATOR"), m.text("menu.reglages.nom"),
-                m.lore("menu.reglages.lore", Map.of())));
-        holder.actions.put(slot(cfg, "reglages"), () -> {
-            p.closeInventory();
-            plugin.runCommands(p, List.of(cfg.settingsCommand()));
-        });
-
-        int position = serie == 0 ? 0 : ((serie - 1) % cfg.cycle()) + 1;
-        int nextStep = cfg.stepDays().stream().filter(d -> d > position).min(Integer::compare).orElse(cfg.cycle());
-        Map<String, List<String>> serieBlocks = new HashMap<>();
-        serieBlocks.put("joker", Streak.jokerAvailable(s.state, today)
-                ? m.block("menu.serie.joker-oui") : m.block("menu.serie.joker-non"));
-        String gain = m.text("menu.serie.gains." + nextStep);
-        serieBlocks.put("gain", gain.isEmpty() ? List.of() : m.block("menu.serie.gain", "gain", gain));
-        holder.inv.setItem(slot(cfg, "serie"), item(icon(cfg, "serie", "CAMPFIRE"),
-                m.text("menu.serie.nom", "serie", Integer.toString(serie)),
-                m.lore("menu.serie.lore", serieBlocks, "serie", Integer.toString(serie),
-                        "reste", Integer.toString(Math.max(1, nextStep - position)), "palier", Integer.toString(nextStep),
-                        "record", Integer.toString(s.state.best))));
-
-        if (!today.toString().equals(s.state.alertSeen)) {
-            s.state.alertSeen = today.toString();
+    /** Le joueur a vu Jake aujourd'hui : l'alerte « tâches du jour » s'éteint. */
+    private static void seen(SHGuide plugin, Player p, Sessions.Session s) {
+        s.back = false;
+        String today = plugin.today().toString();
+        if (!today.equals(s.state.alertSeen)) {
+            s.state.alertSeen = today;
             plugin.sessions().markDirty(p);
         }
-        p.openInventory(holder.inv);
-        plugin.sound(p, "ouverture");
+        plugin.sessions().view(p, s);
     }
 
-    static void openHelp(SHGuide plugin, Player p) {
-        Settings cfg = plugin.settings();
-        Messages m = plugin.messages();
-        Help holder = new Help();
-        holder.inv = Bukkit.createInventory(holder, 45, Messages.item(m.text("menu.titre-aide")));
-        frame(holder.inv, cfg);
-        for (int i = 0; i < cfg.help().size() && i < HELP_CELLS.length; i++) {
-            Settings.HelpEntry h = cfg.help().get(i);
-            holder.inv.setItem(HELP_CELLS[i], item(h.icon(), h.name(), h.lore()));
-            if (!h.commands().isEmpty()) {
-                holder.actions.put(HELP_CELLS[i], () -> {
-                    if (h.close()) {
-                        p.closeInventory();
+    /** Un écran en train d'être dessiné. */
+    private static final class Dessin {
+
+        private final SHGuide plugin;
+        private final Player p;
+        private final Sessions.Session s;
+        private final Programme.Tick t;
+        private final MenusConfig.Ecran screen;
+        private final Holder holder;
+        private final Map<Integer, List<String>> clicks = new HashMap<>();
+        private Texte.Contexte ctx;
+        private ItemStack[] items;
+
+        Dessin(SHGuide plugin, Player p, Sessions.Session s, Programme.Tick t, MenusConfig.Ecran screen, Holder holder) {
+            this.plugin = plugin;
+            this.p = p;
+            this.s = s;
+            this.t = t;
+            this.screen = screen;
+            this.holder = holder;
+        }
+
+        ItemStack[] draw() {
+            items = new ItemStack[screen.size()];
+            ctx = Jetons.of(plugin, p, s, t);
+            Map<String, String> more = new HashMap<>();
+            MenusConfig.Zone news = screen.zones().get("nouveautes");
+            List<Nouveautes.Entree> out = plugin.nouveautes().out(plugin.today());
+            if (news != null) {
+                int pages = Math.max(1, (out.size() + news.slots().size() - 1) / news.slots().size());
+                holder.page = Math.min(holder.page, pages - 1);
+                more.put("page", Integer.toString(holder.page + 1));
+                more.put("pages", Integer.toString(pages));
+                more.put("page_suivante", Jetons.yes(holder.page + 1 < pages));
+                more.put("page_precedente", Jetons.yes(holder.page > 0));
+            }
+            ctx = ctx.with(more, Map.of(), Map.of());
+            String phrase = "";
+            for (MenusConfig.Phrase ph : screen.phrases()) {
+                if (Texte.all(ph.conditions(), ctx)) {
+                    phrase = Texte.line(ph.text(), ctx);
+                    break;
+                }
+            }
+            ctx = ctx.with(Map.of("phrase", phrase), Map.of(), Map.of());
+
+            MenusConfig.Style style = plugin.menus().style();
+            fill(screen.ring(), style.ring());
+            String accent = style.accent();
+            for (MenusConfig.AccentRule r : style.rules()) {
+                if (Texte.all(r.conditions(), ctx)) {
+                    accent = r.icon();
+                    break;
+                }
+            }
+            fill(screen.accent(), accent);
+            for (MenusConfig.Bouton b : screen.buttons()) {
+                for (int slot : b.slots()) {
+                    if (!clicks.containsKey(slot) && Texte.all(b.conditions(), ctx)) {
+                        put(slot, b.item(), ctx);
                     }
-                    plugin.runCommands(p, h.commands());
-                });
+                }
+            }
+            for (MenusConfig.Zone z : screen.zones().values()) {
+                switch (z.type()) {
+                    case "taches" -> tasks(z);
+                    case "piste" -> track(z);
+                    case "paliers" -> steps(z);
+                    case "nouveautes" -> news(z, out);
+                    default -> tutorial(z);
+                }
+            }
+            clicks.values().removeIf(List::isEmpty);
+            return items;
+        }
+
+        private void fill(List<Integer> slots, String icon) {
+            if (icon.isBlank()) {
+                return;
+            }
+            ItemStack it = Icons.make(icon);
+            ItemMeta meta = it.getItemMeta();
+            meta.displayName(Messages.item(" "));
+            meta.addItemFlags(ItemFlag.values());
+            meta.setHideTooltip(true);
+            it.setItemMeta(meta);
+            for (int slot : slots) {
+                items[slot] = it;
             }
         }
-        holder.inv.setItem(HELP_BACK, item(icon(cfg, "retour", "ARROW"), m.text("menu.retour.nom"),
-                m.lore("menu.retour.lore", Map.of())));
-        holder.actions.put(HELP_BACK, () -> open(plugin, p));
-        p.openInventory(holder.inv);
+
+        /** Pose l'objet et retient son clic (une liste vide réserve quand même la case pour les boutons suivants). */
+        private void put(int slot, MenusConfig.Modele m, Texte.Contexte c) {
+            if (slot < 0 || slot >= items.length) {
+                return;
+            }
+            ItemStack it = Icons.make(Texte.line(m.icon(), c));
+            ItemMeta meta = it.getItemMeta();
+            meta.displayName(Messages.item(Texte.line(m.name(), c)));
+            List<String> lore = Texte.lines(m.lore(), c);
+            meta.lore(lore.stream().map(Messages::item).toList());
+            meta.addItemFlags(ItemFlag.values());
+            if (m.glint() || !m.glintIf().isEmpty() && Texte.all(m.glintIf(), c)) {
+                meta.setEnchantmentGlintOverride(true);
+            }
+            int amount = 1;
+            if (!m.amount().isEmpty()) {
+                OptionalDouble n = Num.parse(Texte.line(m.amount(), c));
+                amount = (int) Math.max(1, Math.min(MAX_AMOUNT, n.orElse(1)));
+                if (amount > it.getMaxStackSize()) {
+                    meta.setMaxStackSize(amount);
+                }
+            }
+            it.setItemMeta(meta);
+            it.setAmount(amount);
+            items[slot] = it;
+            List<String> lines = new ArrayList<>();
+            for (String line : m.click()) {
+                String l = Texte.line(line, c).trim();
+                if (!l.isEmpty()) {
+                    lines.add(l);
+                }
+            }
+            clicks.put(slot, lines);
+        }
+
+        private void tasks(MenusConfig.Zone z) {
+            for (int i = 0; i < t.tasks().size() && i < z.slots().size(); i++) {
+                Programme.TaskView v = t.tasks().get(i);
+                String state = v.done() ? "faite" : v.current() > 0 ? "en-cours" : "a-faire";
+                Texte.Contexte c = ctx.with(Map.of("numero", Integer.toString(i + 1), "total", Integer.toString(t.tasks().size()),
+                                "texte", v.text(), "icone", v.def().icon(), "actuel", Num.format(Math.min(v.current(), v.goal())),
+                                "quantite", Num.format(v.goal()), "clic", v.def().click(),
+                                "cliquable", Jetons.yes(!v.def().click().isBlank())),
+                        Map.of("tache", v.ratio()), Map.of("description", v.def().description()));
+                put(z.slots().get(i), z.templates().get(state), c);
+                MenusConfig.Modele light = z.templates().get("voyant-" + state);
+                if (light != null && i < z.lights().size()) {
+                    put(z.lights().get(i), light, c);
+                }
+            }
+        }
+
+        private void track(MenusConfig.Zone z) {
+            Settings cfg = plugin.settings();
+            Serie serie = Serie.of(s.state, plugin.today(), cfg.cycle(), cfg.stepDays());
+            List<Integer> days = serie.cells(z.slots().size());
+            int shift = (z.slots().size() - days.size()) / 2;
+            int previous = serie.start();
+            for (int i = 0; i < days.size(); i++) {
+                int day = days.get(i);
+                Serie.Jour state = serie.day(day, previous);
+                previous = day;
+                boolean last = i == days.size() - 1;
+                String key = last ? "palier" : switch (state) {
+                    case FAIT -> "fait";
+                    case AUJOURDHUI -> "aujourdhui";
+                    default -> "a-venir";
+                };
+                if (last && state == Serie.Jour.FAIT && z.templates().containsKey("palier-fait")) {
+                    key = "palier-fait";
+                }
+                put(z.slots().get(i + shift), z.templates().get(key), ctx.with(Map.of("jour_piste", Integer.toString(day),
+                        "gain", cfg.gain(day)), Map.of(), Map.of()));
+            }
+        }
+
+        private void steps(MenusConfig.Zone z) {
+            Settings cfg = plugin.settings();
+            Serie serie = Serie.of(s.state, plugin.today(), cfg.cycle(), cfg.stepDays());
+            int i = 0;
+            for (int step : cfg.stepDays()) {
+                if (i >= z.slots().size()) {
+                    break;
+                }
+                String key = switch (serie.step(step, s.state.pending)) {
+                    case A_PRENDRE -> "a-prendre";
+                    case ATTEINT -> "atteint";
+                    case SUIVANT -> "suivant";
+                    case LOIN -> "loin";
+                };
+                put(z.slots().get(i++), z.templates().get(key), ctx.with(Map.of("jour_palier", Integer.toString(step),
+                        "gain", cfg.gain(step), "reste", Integer.toString(Math.max(0, step - serie.position()))), Map.of(), Map.of()));
+            }
+        }
+
+        private void news(MenusConfig.Zone z, List<Nouveautes.Entree> out) {
+            Settings cfg = plugin.settings();
+            LocalDate today = plugin.today();
+            List<Nouveautes.Entree> unread = plugin.nouveautes().unread(s.state, today, cfg.newsRecentDays());
+            int from = holder.page * z.slots().size();
+            List<Nouveautes.Entree> page = out.subList(Math.min(from, out.size()), Math.min(from + z.slots().size(), out.size()));
+            for (int i = 0; i < page.size(); i++) {
+                Nouveautes.Entree n = page.get(i);
+                put(z.slots().get(i), z.templates().get(unread.contains(n) ? "nouvelle" : "vue"), ctx.with(Map.of(
+                        "titre", n.title(), "icone", n.icon(), "date", n.date().format(cfg.newsDate()), "commande", n.command(),
+                        "commande_oui", Jetons.yes(!n.command().isBlank()), "cliquable", Jetons.yes(!n.click().isEmpty())),
+                        Map.of(), Map.of("texte", n.text())));
+                clicks.put(z.slots().get(i), n.click());
+            }
+            if (plugin.nouveautes().markRead(s.state, page)) {
+                plugin.sessions().markDirty(p);
+            }
+        }
+
+        private void tutorial(MenusConfig.Zone z) {
+            AccueilConfig ac = plugin.settings().accueil();
+            List<AccueilConfig.Step> steps = ac.tutorial().steps();
+            AccueilConfig.Step current = Accueil.tutorialActive(s.state, ac) ? Accueil.currentStep(s.state, ac) : null;
+            for (int i = 0; i < steps.size() && i < z.slots().size(); i++) {
+                AccueilConfig.Step st = steps.get(i);
+                boolean done = s.state.tutoDone.contains(st.id()) || s.state.tutoFinished;
+                boolean now = st == current;
+                double part = 0;
+                if (now && s.state.tutoBase != null) {
+                    OptionalDouble raw = EtapeProgres.raw(st, ctx.resolver());
+                    part = raw.isEmpty() ? 0 : EtapeProgres.since(raw.getAsDouble(), s.state.tutoBase);
+                }
+                put(z.slots().get(i), z.templates().get(done ? "faite" : now ? "en-cours" : "a-venir"), ctx.with(Map.of(
+                        "numero", Integer.toString(i + 1), "total", Integer.toString(steps.size()), "texte", st.text(),
+                        "icone", st.icon(), "clic", now ? st.click() : "", "cliquable", Jetons.yes(now && !st.click().isBlank())),
+                        Map.of("etape", part), Map.of("description", st.lore())));
+            }
+        }
     }
 
-    /** Donne toutes les récompenses en attente : celle du jour et les paliers de série atteints. */
-    static void claim(SHGuide plugin, Player p) {
-        Sessions.Session s = plugin.sessions().get(p.getUniqueId());
-        if (s == null || s.state.pending.isEmpty()) {
-            plugin.messages().send(p, "rien-a-prendre");
-            return;
-        }
-        List<String> pending = new ArrayList<>(s.state.pending);
-        s.state.pending.clear();
-        plugin.sessions().markDirty(p);
-        List<String> gains = new ArrayList<>();
-        boolean daily = false;
-        AccueilConfig ac = plugin.settings().accueil();
-        for (String id : pending) {
-            if (id.equals("accueil:rester") || id.equals("accueil:demain")) {
-                boolean stay = id.equals("accueil:rester");
-                plugin.runCommands(p, stay ? ac.stay().commands() : ac.tomorrow().commands());
-                String t = stay ? ac.stay().text() : ac.tomorrow().text();
-                if (!t.isEmpty()) {
-                    gains.add(t);
-                }
+    /** Lance les actions d'un clic, dans l'ordre. */
+    private static void run(SHGuide plugin, Player p, Holder h, List<String> lines) {
+        boolean command = false;
+        boolean quiet = false;
+        for (String line : lines) {
+            Action a;
+            try {
+                a = Action.parse(line);
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Écran " + h.screen + " : " + e.getMessage());
                 continue;
             }
-            if (id.equals("jour") || id.startsWith("jour:")) {
-                daily = true;
-                plugin.runCommands(p, plugin.settings().dailyReward());
-                Settings.DailyVariant v = pendingVariant(plugin, id);
-                if (v != null) {
-                    plugin.runCommands(p, v.commands());
-                    gains.add(v.text());
+            if (a == null) {
+                continue;
+            }
+            switch (a.type()) {
+                case MENU -> {
+                    quiet = true;
+                    open(plugin, p, a.arg(), 0);
                 }
-            } else if (id.startsWith("palier:")) {
-                int day = Integer.parseInt(id.substring("palier:".length()));
-                plugin.runCommands(p, plugin.settings().steps().getOrDefault(day, List.of()));
-                plugin.messages().send(p, "recompense-palier", "jour", Integer.toString(day));
+                case RECUPERER -> {
+                    quiet = true;
+                    Recompenses.claim(plugin, p, a.arg());
+                    open(plugin, p, h.screen, h.page);
+                }
+                case PAGE -> open(plugin, p, h.screen, h.page + Integer.parseInt(a.arg()));
+                case FLECHE -> {
+                    plugin.toggleArrow(p);
+                    open(plugin, p, h.screen, h.page);
+                }
+                case FERMER -> p.closeInventory();
+                case MESSAGE -> p.sendMessage(Messages.chat(a.arg().replace("{joueur}", p.getName())));
+                case SON -> p.playSound(p.getLocation(), a.arg(), 1f, 1f);
+                case CONSOLE -> plugin.runCommands(p, List.of("[console] " + a.arg()));
+                case OBJECTIF -> {
+                    Sessions.Session s = plugin.sessions().get(p.getUniqueId());
+                    String click = s == null || s.objective == null ? "" : s.objective.click();
+                    if (!click.isBlank()) {
+                        command |= runObjective(plugin, p, h, click);
+                    }
+                }
+                case JOUEUR -> {
+                    command = true;
+                    plugin.origine().set(p, h.screen, h.page);
+                    plugin.runCommands(p, List.of(a.arg()));
+                }
             }
         }
-        String gain = gains.isEmpty() ? "" : plugin.messages().text("chat.recompense-gain", "texte", String.join(", ", gains));
-        if (daily) {
-            plugin.messages().send(p, "recompense", "serie", Integer.toString(Streak.display(s.state, plugin.today())),
-                    "gain", gain);
-        } else {
-            plugin.messages().send(p, "recompense-accueil", "gain", gain);
+        if (!quiet) {
+            plugin.sound(p, "clic");
         }
-        plugin.sound(p, "recompense");
-    }
-
-    /** Texte d'une récompense en attente, pour le menu. */
-    static String pendingText(SHGuide plugin, String id) {
-        AccueilConfig ac = plugin.settings().accueil();
-        if (id.equals("accueil:rester")) {
-            return ac.stay().text();
-        }
-        if (id.equals("accueil:demain")) {
-            return ac.tomorrow().text();
-        }
-        if (id.equals("jour") || id.startsWith("jour:")) {
-            Settings.DailyVariant v = pendingVariant(plugin, id);
-            return v == null ? "" : v.text();
-        }
-        return "";
-    }
-
-    /** « jour » (avant la 1.2) = la récompense d'aujourd'hui ; « jour:<id> » = celle du jour où le programme a été fini. */
-    static Settings.DailyVariant pendingVariant(SHGuide plugin, String id) {
-        Settings cfg = plugin.settings();
-        return id.startsWith("jour:") ? cfg.variantById(id.substring(5)) : cfg.variantFor(plugin.today());
-    }
-
-    private static int slot(Settings cfg, String key) {
-        return cfg.slots().getOrDefault(key, 0);
-    }
-
-    private static String icon(Settings cfg, String key, String fallback) {
-        return cfg.icons().getOrDefault(key, fallback);
-    }
-
-    private static void frame(Inventory inv, Settings cfg) {
-        ItemStack ring = item(icon(cfg, "contour", "BLACK_STAINED_GLASS_PANE"), " ", List.of());
-        ItemStack accent = item(icon(cfg, "accent", "CYAN_STAINED_GLASS_PANE"), " ", List.of());
-        for (int i = 0; i < 45; i++) {
-            int row = i / 9;
-            int col = i % 9;
-            if (row == 0 || row == 4 || col == 0 || col == 8) {
-                inv.setItem(i, ring);
-            } else if (col == 1 || col == 7) {
-                inv.setItem(i, accent);
-            }
+        if (command) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                // la commande n'a ouvert aucun autre menu (téléportation, message...) : le nôtre se ferme
+                if (p.isOnline() && p.getOpenInventory().getTopInventory().equals(h.inv)) {
+                    p.closeInventory();
+                    plugin.origine().clear(p);
+                }
+            }, plugin.menus().closeTicks());
         }
     }
 
-    /** Barre de progression : « barre-cases » cases, pleines à la part faite. */
-    static String bar(Messages m, double current, double goal) {
-        int cells = Math.max(1, m.number("menu.tache.barre-cases", 10));
-        int full = goal <= 0 ? cells : (int) Math.floor(Math.max(0, Math.min(1, current / goal)) * cells);
-        return m.text("menu.tache.barre-pleine").repeat(full) + m.text("menu.tache.barre-vide").repeat(cells - full);
-    }
-
-    private static void glint(ItemStack it) {
-        ItemMeta meta = it.getItemMeta();
-        meta.setEnchantmentGlintOverride(true);
-        it.setItemMeta(meta);
-    }
-
-    private static ItemStack item(String icon, String name, List<String> lore) {
-        ItemStack it = Icons.make(icon);
-        ItemMeta meta = it.getItemMeta();
-        meta.displayName(Messages.item(name));
-        meta.lore(lore.stream().map(Messages::item).toList());
-        meta.addItemFlags(ItemFlag.values());
-        it.setItemMeta(meta);
-        return it;
+    /** Clic de l'objectif : un écran de Jake (« guide recompenses ») s'ouvre directement. Vrai si c'est une autre commande. */
+    private static boolean runObjective(SHGuide plugin, Player p, Holder h, String click) {
+        String[] words = click.trim().split("\\s+", 2);
+        if (words[0].equalsIgnoreCase("guide") && (words.length == 1 || plugin.menus().screen(words[1]) != null)) {
+            open(plugin, p, words.length == 1 ? plugin.menus().home() : words[1], 0);
+            return false;
+        }
+        plugin.origine().set(p, h.screen, h.page);
+        plugin.runCommands(p, List.of(click));
+        return true;
     }
 
     static final class Listener implements org.bukkit.event.Listener {
@@ -340,23 +405,27 @@ final class GuideMenu {
 
         @EventHandler
         public void onClick(InventoryClickEvent e) {
-            if (!(e.getInventory().getHolder() instanceof Holder h)) {
+            if (!(e.getInventory().getHolder(false) instanceof Holder h)) {
                 return;
             }
             e.setCancelled(true);
             if (e.getClickedInventory() != e.getInventory() || !(e.getWhoClicked() instanceof Player p)) {
                 return;
             }
-            Runnable action = h.actions.get(e.getRawSlot());
-            if (action != null) {
-                plugin.sound(p, "clic");
-                plugin.sync(action);
+            List<String> lines = h.clicks.get(e.getRawSlot());
+            if (lines != null) {
+                plugin.sync(() -> {
+                    // un clic resté en route pendant que le menu changeait ne compte pas
+                    if (p.isOnline() && p.getOpenInventory().getTopInventory().equals(h.inv)) {
+                        run(plugin, p, h, lines);
+                    }
+                });
             }
         }
 
         @EventHandler
         public void onDrag(InventoryDragEvent e) {
-            if (e.getInventory().getHolder() instanceof Holder) {
+            if (e.getInventory().getHolder(false) instanceof Holder) {
                 e.setCancelled(true);
             }
         }

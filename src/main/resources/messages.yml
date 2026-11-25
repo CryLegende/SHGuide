@@ -1,25 +1,26 @@
 # ============================================================================
-#  SHGuide : messages du chat, menu de Jake, objectif du moment et retour
+#  SHGuide : messages du chat, objectif, scoreboard, alerte et retour
 # ============================================================================
 #  Codes couleur & et &#RRGGBB acceptés. Format SkyHand pour le chat : préfixe
 #  de la couleur du type, texte en &7, mots importants dans la couleur du type.
 #    &a succès · &e information · &6 avertissement · &c erreur
-#  Un message vide n'est pas envoyé.
+#  Un message vide n'est pas envoyé. Les écrans de Jake sont dans menus.yml.
 #
-#  Menus : chaque bouton a un « nom » et un « lore » (liste de lignes). Une ligne
-#  faite seulement d'un {bloc} est remplacée par les lignes de ce bloc, ou par
-#  rien s'il est vide ; les lignes vides en double disparaissent.
+#  Accords : {n|tâche|tâches} écrit « 1 tâche » ou « 2 tâches » (scoreboard,
+#  alerte et retour seulement ; les messages du chat reçoivent le texte accordé).
 # ============================================================================
 
 chat:
+  # {reste} : reste-une ou reste-plusieurs
   tache-faite: "&7&l« &a&lJake &8&l» &7Tâche du jour faite, &a{reste}&7."
   reste-plusieurs: "plus que {n}"
   reste-une: "plus qu'une"
-  programme-complet: "&7&l« &a&lJake &8&l» &7Programme du jour &acomplet &7! Votre récompense vous attend dans &a/jake&7."
-  recompense: "&7&l« &a&lJake &8&l» &7Récompense récupérée{gain}&7. Série de &a{serie} jour(s)&7."
-  # {gain} du message ci-dessus quand une récompense du jour s'ajoute (programme.recompenses-du-jour)
-  recompense-gain: " : &a{texte}"
-  recompense-palier: "&7&l« &a&lJake &8&l» &7Palier de série atteint, &a{jour} jours &7!"
+  programme-complet: "&7&l« &a&lJake &8&l» &7Vos tâches du jour sont faites, votre cadeau vous attend dans &a/jake&7."
+  recompense: "&7&l« &a&lJake &8&l» &7Cadeau récupéré{gain}&7. Série de &a{serie}&7."
+  # {gain} des deux messages de cadeau, vide s'il n'y a rien à dire
+  recompense-gain: ", &a{texte}"
+  recompense-palier: "&7&l« &a&lJake &8&l» &7Palier de &a{jour} jours &7atteint, &a{gain} &7pour vous !"
+  recompense-accueil: "&7&l« &a&lJake &8&l» &7Cadeau récupéré{gain}&7. Bon jeu !"
   rien-a-prendre: "&7&l« &e&lJake &8&l» &7Rien à récupérer pour l'instant."
   chargement: "&7&l« &e&lJake &8&l» &7Votre guide se charge, réessayez dans une seconde."
   joueurs-seulement: "&7&l« &c&lJake &8&l» &7Commande réservée aux joueurs."
@@ -34,188 +35,85 @@ chat:
   reset-ok: "&7&l« &a&lSHGuide &8&l» &7Guide de &a{joueur} &7remis à zéro."
   accueil-ok: "&7&l« &a&lSHGuide &8&l» &7Accueil de &a{joueur}&7, {action} fait."
   # Accueil des nouveaux joueurs (section accueil de config.yml)
-  recompense-accueil: "&7&l« &a&lJake &8&l» &7Cadeau récupéré{gain}&7. Bon jeu !"
   accueil-rester: "&7&l« &a&lJake &8&l» &7Merci pour ces {minutes} minutes de jeu ! Votre cadeau, &a{gain}&7, vous attend dans &a/jake&7."
   accueil-demain-annonce: "&7&l« &a&lJake &8&l» &7Et revenez demain, je vous garde &b{gain}&7."
   accueil-demain-pret: "&7&l« &a&lJake &8&l» &7Content de vous revoir ! Votre cadeau, &b{gain}&7, vous attend dans &a/jake&7."
   tutoriel-etape: "&7&l« &a&lJake &8&l» &7Étape &a{n}/{total} &7faite, &a{texte}&7.{gain}"
   tutoriel-gain: " Vous gagnez &a{texte}&7."
   tutoriel-suivante: "&7&l« &e&lJake &8&l» &7Étape suivante, &e{texte}&7."
-  tutoriel-fini: "&7&l« &a&lJake &8&l» &7Tutoriel terminé, bravo ! Votre programme du jour vous attend dans &a/jake&7."
-  fleche-on: "&7&l« &a&lJake &8&l» &7Flèche du tutoriel &aremise&7."
-  fleche-off: "&7&l« &e&lJake &8&l» &7Flèche du tutoriel &ecoupée&7, &e/guide fleche &7pour la remettre."
+  tutoriel-fini: "&7&l« &a&lJake &8&l» &7Tutoriel terminé, bravo ! Vos tâches du jour vous attendent dans &a/jake&7."
+  fleche-on: "&7&l« &a&lJake &8&l» &7Flèche du tutoriel &aaffichée&7."
+  fleche-off: "&7&l« &e&lJake &8&l» &7Flèche du tutoriel &ecachée&7."
   info:
     - "&7&l« &e&lSHGuide &8&l» &e{joueur} &7jour {jour}, palier {palier}, tâches {faites}/{total}"
     - "&7Série {serie} (record {record}), joker {joker}, dernière venue {venue}, à prendre {attente}"
 
-# Objectif du moment (aussi affiché dans le scoreboard)
+# Commande lancée quand on clique sur un message du chat (même clé que le message), et texte montré au survol.
+clics:
+  survol: "&7Cliquez pour ouvrir"
+  tache-faite: "guide taches"
+  programme-complet: "guide recompenses"
+  recompense: "guide"
+  recompense-accueil: "guide"
+  accueil-rester: "guide recompenses"
+  accueil-demain-pret: "guide recompenses"
+  tutoriel-etape: "guide premiers-pas"
+  tutoriel-suivante: "guide premiers-pas"
+  tutoriel-fini: "guide taches"
+
+# Plusieurs cadeaux du jour pris d'un coup, et ce qui sépare les cadeaux dans une phrase
+recompense-plusieurs: "{n} fois {texte}"
+recompense-separateur: "&7, &a"
+
+mots:
+  jour: "jour"
+  jours: "jours"
+
+# Temps avant les nouvelles tâches
+duree:
+  heures: "{h} h {m} min"
+  minutes: "{m} min"
+
+# Objectif du moment
 objectif:
   aucun: "Explorer votre île"
   presque: "Plus que {reste} · {tache}"
   annonce-bientot: "{texte} dans {minutes} min"
   annonce-commence: "{texte} commence"
 
-menu:
-  titre: "&8&lJake &8| Votre guide"
-  titre-aide: "&8&lJake &8| Comment faire ?"
+# Ligne %shguide_ligne% : {faites} {total} {serie} {cadeaux} {tuto_n} {tuto_total}
+scoreboard:
+  tutoriel: "&7Étape &a{tuto_n}&7/&a{tuto_total} &7du tutoriel"
+  cadeau: "&a&lCadeau prêt ! &7/jake"
+  serie: "&b{faites}&7/&b{total} &7tâches · série &6{serie} j"
+  taches: "&b{faites}&7/&b{total} &7tâches du jour"
 
-  jake:
-    nom: "&eJake, votre guide"
-    lore:
-      - ""
-      - "&8&l« &f{phrase} &8&l»"
-      - ""
-      - "&7Chaque jour, Jake vous donne &e{total} tâches"
-      - "&7simples. Finissez-les pour gagner une"
-      - "&erécompense &7et faire grimper votre &6série&7."
-    phrase-debut: "Salut {joueur}, voici vos tâches du jour !"
-    phrase-encours: "Courage {joueur}, plus que {reste} tâche(s) !"
-    phrase-prete: "Bravo {joueur}, votre récompense est prête !"
-    phrase-fini: "Bien joué {joueur}, revenez demain !"
+# Ligne au-dessus de Jake (%shguide_alerte_texte%), la première qui s'applique ; vide = pas de ligne.
+alerte:
+  cadeau: "&a&l! &aCadeau prêt"
+  nouveautes: "&e&l! &e{nouveautes|nouveauté|nouveautés}"
+  taches: "&e&l! &eVos tâches du jour"
 
-  objectif:
-    nom: "&bObjectif du moment"
-    lore:
-      - ""
-      - "&8&l« &7Ce que Jake vous conseille"
-      - "&7de faire maintenant. &8&l»"
-      - ""
-      - " &b➜ &f{texte}"
-      - "{description}"
-      - ""
-      - "{clic}"
-    clic: "&7&o(( &b&oCliquez pour y aller &7&o))"
-
-  tache:
-    nom: "&b{texte}"
-    nom-fait: "&a✔ {texte}"
-    lore:
-      - "&8Tâche du jour {numero}/{total}"
-      - ""
-      - "{description}"
-      - ""
-      - " &b• &7Progression: &f{actuel}&7/&f{objectif}"
-      - " {barre}"
-      - ""
-      - "{clic}"
-    lore-fait:
-      - "&8Tâche du jour {numero}/{total}"
-      - ""
-      - "&a✔ &7Tâche faite, bravo !"
-    clic: "&7&o(( &b&oCliquez pour y aller &7&o))"
-    sans-clic: ""
-    barre-pleine: "&b■"
-    barre-vide: "&8■"
-    barre-cases: 10
-
-  recompense:
-    nom-fermee: "&6Récompense du jour"
-    lore-fermee:
-      - ""
-      - "&8&l« &7Finissez les &6{total} tâches &7du jour"
-      - "&7pour débloquer ce coffre. &8&l»"
-      - ""
-      - " &6• &7Tâches faites: &f{faites}&7/&f{total}"
-      - "{gain}"
-      - "{demain}"
-      - "{accueil-demain}"
-    nom-prete: "&aRécompense du jour"
-    lore-prete:
-      - ""
-      - "&8&l« &7Les &a{total} tâches &7sont faites,"
-      - "&7votre récompense est prête ! &8&l»"
-      - ""
-      - "{gain}"
-      - "{accueil-demain}"
-      - ""
-      - "&7&o(( &a&oCliquez pour la récupérer &7&o))"
-    nom-prete-accueil: "&aCadeau de bienvenue"
-    lore-prete-accueil:
-      - ""
-      - "&8&l« &7Jake vous offre un cadeau"
-      - "&7pour votre arrivée ! &8&l»"
-      - ""
-      - " &a• &7Cadeau: &f{gain}"
-      - "{accueil-demain}"
-      - ""
-      - "&7&o(( &a&oCliquez pour le récupérer &7&o))"
-    nom-prise: "&7Récompense récupérée"
-    lore-prise:
-      - ""
-      - "&8&l« &7Revenez demain pour un"
-      - "&7nouveau programme. &8&l»"
-      - ""
-      - "{demain}"
-      - "{accueil-demain}"
-    # Lignes {gain} et {demain} : la récompense en plus d'aujourd'hui et de demain (programme.recompenses-du-jour)
-    gain: " &6• &7Récompense du jour: &f{gain}"
-    demain: " &8• &7Demain: &f{gain}"
-    # Premier jour d'un nouveau joueur : le cadeau qui l'attend demain (accueil.demain)
-    accueil-demain: " &b• &7Cadeau de demain: &f{gain}"
-
-  serie:
-    nom: "&6Série de {serie} jour(s)"
-    lore:
-      - ""
-      - "&8&l« &7Finissez votre programme chaque"
-      - "&7jour pour faire grimper votre série. &8&l»"
-      - ""
-      - " &6• &7Prochain palier: &fjour {palier} &7(dans {reste} j)"
-      - "{gain}"
-      - " &6• &7Record: &f{record} jour(s)"
-      - ""
-      - "{joker}"
-    gain: " &6• &7Gain du palier: &f{gain}"
-    # Ce que donne chaque palier de serie.paliers (config.yml), montré sous « Prochain palier ».
-    gains:
-      7: "un bonus"
-    joker-oui:
-      - "&a✔ &7Joker disponible: un jour raté"
-      - "&7cette semaine ne casse pas la série."
-    joker-non:
-      - "&8✘ &7Joker déjà utilisé cette semaine:"
-      - "&7un jour raté remet la série à zéro."
-
-  aide:
-    nom: "&eComment faire ?"
-    lore:
-      - ""
-      - "&8&l« &7Les réponses aux questions que"
-      - "&7se posent les nouveaux joueurs. &8&l»"
-      - ""
-      - "&7&o(( &e&oCliquez pour ouvrir &7&o))"
-
-  ile:
-    nom: "&aMenu de votre île"
-    lore:
-      - ""
-      - "&8&l« &7Téléportation, quêtes, membres"
-      - "&7et améliorations de votre &aîle&7. &8&l»"
-      - ""
-      - "&7&nCommande:&a /is"
-      - ""
-      - "&7&o(( &a&oCliquez pour ouvrir &7&o))"
-
-  reglages:
-    nom: "&eParamètres du NPC Jake"
-    lore:
-      - ""
-      - "&8&l« &7Affichez les options de"
-      - "&7modifications du &eNPC Jake &8&l»"
-      - ""
-      - "&7&o(( &e&oCliquez pour ouvrir &7&o))"
-
-  retour:
-    nom: "&c⤾ Retour &7(Clic)"
-    lore: []
-
-# Retour après une absence, pour les versions sans dialogues (le dialogue vient de SHDialogs)
+# Retour après une absence. « lignes » : dialogue (%shguide_retour%) et chat des versions sans dialogues.
+# Jetons : {joueur} {objectif} {cadeaux} {nouveautes} {autres}, et {nouveautes_liste} (une ligne « nouveaute » par
+# nouveauté montrée, config.yml retour.nouveautes-max).
 retour:
+  lignes:
+    - "[si {cadeaux} >= 1] &aUn cadeau vous attend."
+    - "[si {cadeaux} >= 1] "
+    - "[si {nouveautes} >= 1] &7Depuis votre dernière venue"
+    - "{nouveautes_liste}"
+    - "[si {autres} >= 1] &7et {autres|autre nouveauté|autres nouveautés}"
+    - "[si {nouveautes} >= 1] "
+    - "&7Votre objectif du moment"
+    - "&b{objectif}"
+  nouveaute: "&e✦ &f{titre}"
+  # Chat des versions sans dialogues : ces lignes, celles d'au-dessus, puis un bouton.
   chat:
     - "&7&l« &e&lJake &8&l» &7Content de vous revoir, &e{joueur} &7!"
-    - "&7Votre objectif du moment, &e{objectif}&7."
-  nouveaute: "&8• &7{texte}"
-  bouton: "&e&l[Voir Jake]"
+  bouton: "&e&l[Ouvrir le menu de Jake]"
+  bouton-nouveautes: "&e&l[Voir les nouveautés]"
+  bouton-cadeau: "&a&l[Récupérer mon cadeau]"
 
 # Accueil des nouveaux joueurs : barres du haut de l'écran et texte de la flèche
 accueil:

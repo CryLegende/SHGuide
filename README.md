@@ -4,7 +4,7 @@
 
 # SHGuide
 
-*Jake, le guide du joueur : objectif du moment, programme du jour avec sa série, retour guidé et « Comment faire… ».*
+*Jake, le guide du joueur : objectif du moment, tâches du jour, récompenses et série, nouveautés, retour guidé, accueil des nouveaux.*
 
 <img src="https://img.shields.io/badge/Paper-26.3-f2a900?style=for-the-badge" alt="Paper 26.3"> <img src="https://img.shields.io/badge/Java-25-e76f00?style=for-the-badge" alt="Java 25"> <img src="https://img.shields.io/badge/SkyHand-Opale-3aa655?style=for-the-badge" alt="SkyHand Opale">
 
@@ -14,15 +14,28 @@
 
 ## Présentation
 
-À tout moment, le joueur voit une seule chose à faire et a une raison de revenir le lendemain. Le menu de Jake (`/guide`, ou un clic sur Jake avec SHIslandJake) réunit :
+À tout moment, le joueur voit une seule chose à faire et a une raison de revenir le lendemain. Jake (`/guide`, ou un clic sur Jake avec SHIslandJake) ouvre un accueil court, et chaque sujet a son écran :
+
+```
+accueil ─┬─ objectif du moment (un clic y emmène)
+         ├─ taches          les tâches du jour et leur avancement
+         ├─ recompenses     cadeau du jour, série, paliers, cadeaux des nouveaux joueurs
+         ├─ nouveautes      ce qui a changé, signalé tant que le joueur ne l'a pas vu
+         ├─ premiers-pas    les étapes du tutoriel (nouveaux joueurs)
+         └─ aide            « Comment faire ? »
+```
+
+Chaque écran s'ouvre aussi directement (`/guide taches`, `/guide recompenses`…), depuis le chat, un dialogue ou un autre menu. Les écrans, leurs cases, leurs textes et leurs clics sont tous dans `menus.yml`.
 
 | Partie | Effet |
 |---|---|
 | Objectif du moment | Le premier objectif de `objectifs` dont les conditions sont vraies : event qui commence bientôt, récompense à prendre, tâche presque finie, quête en cours… Un clic y emmène. |
-| Programme du jour | Les tâches de `programme.taches` et une tâche tournante (`programme.tournantes`, une par jour pour tout le serveur), remises à zéro à minuit. Une tâche avance de ce que ses compteurs gagnent depuis le début de la journée, compte des valeurs égales à un texte, ou lit un nombre tel quel (`valeur`, par exemple les votes du jour faits avant la connexion). Les départs sont pris `depart-apres-connexion-secondes` après la connexion. Un joueur sans ligne dans le guide reprend la dernière venue gardée par le serveur. Quantités par palier (1 à 5). |
+| Tâches du jour | Les tâches de `programme.taches` et une tâche tournante (`programme.tournantes`, une par jour pour tout le serveur), remises à zéro à minuit. Une tâche avance de ce que ses compteurs gagnent depuis le début de la journée, compte des valeurs égales à un texte, ou lit un nombre tel quel (`valeur`, par exemple les votes du jour faits avant la connexion). Les départs sont pris `depart-apres-connexion-secondes` après la connexion. Un joueur sans ligne dans le guide reprend la dernière venue gardée par le serveur. Quantités par palier (1 à 5). |
 | Récompense et série | Un jour complet donne `programme.recompense` et fait avancer la série. Un jour raté par semaine est pardonné (joker, rendu chaque lundi). Les paliers de `serie.paliers` reviennent tous les `serie.cycle` jours. |
-| Comment faire… | Un sous-menu de dix questions au plus (`aide`) : chaque bouton lance ses commandes ou explique en une ligne. |
-| Retour guidé | Après `retour.jours` jours d'absence, un dialogue (ou le chat pour les anciennes versions) donne les nouveautés parues depuis la dernière venue et l'objectif du moment. |
+| Récompenses | Chaque cadeau se prend seul, ou tous d'un coup : cadeau du jour, palier de série, cadeau de bienvenue, cadeau du lendemain. Un clic répété ne redonne rien. |
+| Nouveautés | Une entrée par nouveauté dans `nouveautes.yml` : date de sortie, icône, texte, commande et clic. Elle brille tant que le joueur ne l'a pas vue (`nouveautes-recentes-jours`), et le dialogue de retour cite celles sorties depuis la dernière venue. |
+| Liens | Un bouton lance une commande, une commande ouvre un écran, et le Retour d'un menu ouvert par Jake ramène à l'écran d'où vient le joueur (`/guide retour <commande>`). Les messages du chat se cliquent (`clics` de `messages.yml`). |
+| Retour guidé | Après `retour.jours` jours d'absence, un dialogue (ou le chat pour les anciennes versions) donne le cadeau qui attend, les nouveautés sorties depuis la dernière venue et l'objectif du moment (`retour.lignes` de `messages.yml`, `%shguide_retour%`). |
 | Barre d'event | Un event annoncé par `/shguide annonce` (par exemple dans les commandes de rappel du bot des évènements : `shguide annonce {heure} {nom} \| events`) affiche à tout le serveur une barre violette avec son compte à rebours, `annonce-barre.minutes-avant` minutes avant son début. |
 | Accueil des nouveaux | Pour un joueur dont la toute première connexion a lieu avec le guide (section `accueil`), voir le tableau ci-dessous. |
 
@@ -50,10 +63,11 @@ Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée 
 
 | Commande | Permission | Effet |
 |---|---|---|
-| `/guide` | `shguide.use` | Menu de Jake |
-| `/guide aller` | `shguide.use` | Lance le clic de l'objectif du moment (bouton « Y aller » du dialogue de retour) |
+| `/guide [écran]` | `shguide.use` | Accueil de Jake, ou un de ses écrans (`taches`, `recompenses`, `nouveautes`, `aide`, `premiers-pas`, accents facultatifs) |
+| `/guide retour [commande]` | `shguide.use` | Bouton Retour d'un menu que Jake peut ouvrir : revient à l'écran de Jake d'où vient le joueur, sinon lance la commande |
+| `/guide aller` | `shguide.use` | Lance le clic de l'objectif du moment |
 | `/guide fleche` | `shguide.use` | Coupe ou remet la flèche du tutoriel |
-| `/shguide reload` | `shguide.admin.reload` | Recharge `config.yml` et `messages.yml` |
+| `/shguide reload` | `shguide.admin.reload` | Recharge les quatre fichiers ; si l'un est invalide, rien ne change et le message donne le fichier et la clé |
 | `/shguide info <joueur>` | `shguide.admin.info` | Programme, série et dates d'un joueur |
 | `/shguide annonce <minutes\|HH:MM> <texte> \| <commande>` | `shguide.admin.annonce` | Event qui commence dans `<minutes>` ou à `HH:MM` : il devient l'objectif du moment de tout le serveur `annonce-avant-minutes` avant son début, et sa barre de compte à rebours s'affiche `annonce-barre.minutes-avant` avant. L'annoncer plusieurs fois remplace l'annonce. |
 | `/shguide set <joueur> <serie\|jour\|derniere-venue\|dernier-complet\|premier-jour> <valeur>` | `shguide.admin.set` | Corrige un joueur (dates au format 2026-11-23, `aucun` efface `dernier-complet` et `premier-jour`) |
@@ -66,14 +80,19 @@ Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée 
 
 | Placeholder | Valeur |
 |---|---|
-| `%shguide_objectif%` | Texte court de l'objectif du moment |
+| `%shguide_objectif%` | Objectif du moment, court : ce qu'il faut faire s'il tient en `objectif-longueur-max` caractères, sinon son nom |
+| `%shguide_objectif_nom%` / `%shguide_objectif_faire%` | Son nom / ce qu'il faut faire, en entier |
 | `%shguide_objectif_detail%` | Première ligne de sa description |
+| `%shguide_ligne%` | Ligne du scoreboard : étape du tutoriel, cadeau prêt, ou tâches et série (`scoreboard` de `messages.yml`) |
 | `%shguide_programme%` / `%shguide_programme_total%` | Tâches faites / tâches du jour |
 | `%shguide_serie%` / `%shguide_record%` | Série actuelle / meilleure série |
 | `%shguide_joker%` | oui si le joker de la semaine est encore là |
-| `%shguide_recompense_prete%` | oui si une récompense attend dans le menu |
-| `%shguide_alerte%` | oui si Jake a quelque chose pour le joueur (récompense, première visite du jour) |
-| `%shguide_nouveautes_nombre%` / `%shguide_nouveaute_<n>%` | Nouveautés depuis la dernière venue |
+| `%shguide_recompense_prete%` / `%shguide_cadeaux%` | oui si un cadeau attend / nombre de cadeaux |
+| `%shguide_alerte%` / `%shguide_alerte_texte%` | oui si Jake a quelque chose pour le joueur / ce que c'est (cadeau, nouveautés, tâches du jour pas encore vues) |
+| `%shguide_fin_jour%` | Temps avant les nouvelles tâches |
+| `%shguide_nouveautes_non_lues%` | Nouveautés que le joueur n'a pas encore vues |
+| `%shguide_nouveautes_nombre%` / `%shguide_nouveaute_<n>%` | Nouveautés sorties depuis la dernière venue / titre de la n-ième |
+| `%shguide_retour%` | Texte du retour guidé, sur plusieurs lignes |
 | `%shguide_menu_vu%` | oui si le joueur a ouvert le menu de Jake aujourd'hui |
 | `%shguide_nouveau%` | oui pour un joueur arrivé depuis l'accueil (premier jour connu), non pour un ancien |
 | `%shguide_accueil_temps%` | Temps de jeu restant avant le cadeau « rester » (m:ss), vide une fois le cadeau donné |
@@ -87,8 +106,10 @@ Fichiers par défaut, avec des valeurs d'exemple. Cliquez sur un fichier pour l'
 
 <pre>
 plugins/SHGuide/
-├── <a href="src/main/resources/config.yml">config.yml</a>     base de données, programme, série, objectifs, retour, menu, « Comment faire… », sons, exemple d'accueil (commenté)
-└── <a href="src/main/resources/messages.yml">messages.yml</a>   messages du chat, menu de Jake, objectif du moment, retour
+├── <a href="src/main/resources/config.yml">config.yml</a>       base de données, tâches, récompenses, série, objectifs, retour, sons, exemple d'accueil (commenté)
+├── <a href="src/main/resources/menus.yml">menus.yml</a>        les écrans de Jake : cases, icônes, textes, conditions, clics
+├── <a href="src/main/resources/nouveautes.yml">nouveautes.yml</a>   une entrée par nouveauté
+└── <a href="src/main/resources/messages.yml">messages.yml</a>     messages du chat, objectif, scoreboard, alerte, retour
 </pre>
 
 ## Compilation

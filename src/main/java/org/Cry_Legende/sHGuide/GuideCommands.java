@@ -41,7 +41,11 @@ final class GuideCommands implements TabExecutor {
             } else if (args.length > 0 && args[0].equalsIgnoreCase("aller")) {
                 goToObjective(p);
             } else if (args.length > 0 && args[0].equalsIgnoreCase("fleche")) {
-                toggleArrow(p);
+                plugin.toggleArrow(p);
+            } else if (args.length > 0 && args[0].equalsIgnoreCase("retour")) {
+                back(p, args);
+            } else if (args.length > 0 && plugin.menus().screen(args[0]) != null) {
+                GuideMenu.open(plugin, p, args[0], 0);
             } else {
                 GuideMenu.open(plugin, p);
             }
@@ -70,19 +74,19 @@ final class GuideCommands implements TabExecutor {
         return true;
     }
 
-    /** /guide fleche : coupe ou remet la flèche du tutoriel. */
-    private void toggleArrow(Player p) {
-        Sessions.Session s = plugin.sessions().get(p.getUniqueId());
-        if (s == null) {
-            plugin.messages().send(p, "chargement");
-            return;
+    /**
+     * /guide retour [commande] : bouton Retour d'un menu que Jake peut ouvrir. Le joueur qui y est entré par Jake retrouve
+     * l'écran d'où il est parti ; les autres lancent la commande (le retour habituel du menu), ou ouvrent Jake s'il n'y en a pas.
+     */
+    private void back(Player p, String[] args) {
+        Origine.Depart from = plugin.origine().back(p);
+        if (from != null) {
+            GuideMenu.open(plugin, p, from.screen(), from.page());
+        } else if (args.length > 1) {
+            plugin.playerCommand(p, String.join(" ", Arrays.copyOfRange(args, 1, args.length)));
+        } else {
+            GuideMenu.open(plugin, p);
         }
-        s.state.arrowOff = !s.state.arrowOff;
-        plugin.sessions().markDirty(p);
-        if (s.state.arrowOff) {
-            plugin.fleche().setTarget(p, null, "");
-        }
-        plugin.messages().send(p, s.state.arrowOff ? "fleche-off" : "fleche-on");
     }
 
     /**
@@ -129,7 +133,7 @@ final class GuideCommands implements TabExecutor {
             return;
         }
         String click = s.objective == null ? "" : s.objective.click();
-        if (click.isEmpty() || click.equalsIgnoreCase("guide")) {
+        if (click.isEmpty()) {
             GuideMenu.open(plugin, p);
         } else {
             plugin.runCommands(p, java.util.List.of(click));
@@ -220,8 +224,10 @@ final class GuideCommands implements TabExecutor {
         List<String> out = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("guide")) {
             if (args.length == 1) {
-                for (String s : List.of("aller", "fleche")) {
-                    if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) {
+                List<String> subs = new ArrayList<>(plugin.menus().screens().keySet());
+                subs.addAll(List.of("aller", "fleche"));
+                for (String s : subs) {
+                    if (s.startsWith(MenusConfig.key(args[0]))) {
                         out.add(s);
                     }
                 }

@@ -3,16 +3,19 @@
 # ======================================================================== #
 #
 # Jake, le guide du joueur : objectif du moment, programme du jour avec sa série, retour guidé après une
-# absence et réponses aux questions fréquentes (« Comment faire… »). Le plugin ne connaît aucun autre plugin :
+# absence et accueil des nouveaux. Les écrans de Jake sont dans menus.yml, les nouveautés dans nouveautes.yml, les messages
+# dans messages.yml. Le plugin ne connaît aucun autre plugin :
 # tout passe par des placeholders (PlaceholderAPI) et des commandes écrits ici.
 # Les nouveaux joueurs ont en plus un accueil (section accueil, exemple commenté en bas du fichier) : cadeaux,
 # tutoriel en étapes, arrivée sur l'île et flèche vers l'étape.
 #
 # Commandes :
-#   /guide                                        Ouvre le menu de Jake (shguide.use).
+#   /guide [écran]                                Ouvre Jake, ou un de ses écrans (menus.yml : taches, recompenses...).
 #   /guide aller                                  Lance le clic de l'objectif du moment.
 #   /guide fleche                                 Coupe ou remet la flèche du tutoriel.
-#   /shguide reload                               Recharge config.yml et messages.yml.
+#   /guide retour [commande]                      Bouton Retour d'un menu ouvert par Jake : revient à l'écran de Jake d'où
+#                                                 vient le joueur, sinon lance la commande.
+#   /shguide reload                               Recharge config.yml, menus.yml, nouveautes.yml et messages.yml.
 #   /shguide info <joueur>                        Programme, série et dates d'un joueur.
 #   /shguide annonce <minutes|HH:MM> <texte> | <clic>
 #                                                 Event qui commence dans <minutes> ou à HH:MM (heure du fuseau) : il
@@ -30,17 +33,24 @@
 #   shguide.admin.<sous-commande>   reload, info, annonce, set, reset, accueil.
 #
 # Placeholders :
-#   %shguide_objectif%           Texte court de l'objectif du moment (scoreboard).
+#   %shguide_objectif%           Objectif du moment, court (scoreboard) : ce qu'il faut faire, ou son nom si c'est trop long.
+#   %shguide_objectif_nom%       Nom de l'objectif.
+#   %shguide_objectif_faire%     Ce qu'il faut faire, en entier.
 #   %shguide_objectif_detail%    Première ligne de description de l'objectif.
+#   %shguide_ligne%              Ligne du scoreboard (messages.yml, scoreboard).
 #   %shguide_programme%          Tâches faites aujourd'hui (2).
 #   %shguide_programme_total%    Tâches du jour (4).
 #   %shguide_serie%              Série actuelle en jours.
 #   %shguide_record%             Meilleure série.
 #   %shguide_joker%              oui si le joker de la semaine est encore là, sinon non.
 #   %shguide_recompense_prete%   oui si une récompense attend dans le menu.
-#   %shguide_alerte%             oui si Jake a quelque chose pour le joueur (récompense, première visite du jour).
-#   %shguide_nouveautes_nombre%  Nouveautés depuis la dernière venue (0 à nouveautes-max).
-#   %shguide_nouveaute_<n>%      Texte de la n-ième nouveauté (vide s'il n'y en a pas).
+#   %shguide_cadeaux%            Nombre de cadeaux à récupérer.
+#   %shguide_alerte%             oui si Jake a quelque chose pour le joueur, %shguide_alerte_texte% dit quoi.
+#   %shguide_fin_jour%           Temps avant les nouvelles tâches.
+#   %shguide_retour%             Texte du retour guidé, sur plusieurs lignes (messages.yml, retour.lignes).
+#   %shguide_nouveautes_non_lues% Nouveautés que le joueur n'a pas encore vues.
+#   %shguide_nouveautes_nombre%  Nouveautés sorties depuis la dernière venue.
+#   %shguide_nouveaute_<n>%      Titre de la n-ième d'entre elles (vide s'il n'y en a pas).
 #   %shguide_menu_vu%            oui si le joueur a ouvert le menu de Jake aujourd'hui.
 #   %shguide_nouveau%            oui pour un joueur arrivé depuis l'accueil (premier jour connu), non pour un ancien.
 #   %shguide_accueil_temps%      Temps de jeu restant avant le cadeau « rester » (m:ss), vide une fois le cadeau donné.
@@ -58,11 +68,11 @@
 #   {tache_proche} {tache_proche_texte} {tache_proche_clic}, {tache_suivante} {tache_suivante_texte} {tache_suivante_clic},
 #   {tuto} {tuto_texte} {tuto_clic} {tuto_description} {tuto_n} {tuto_total} (étape en cours du tutoriel).
 #   Les jetons oui/non valent « oui » ou « non ».
-# Jetons des tâches : {objectif} (quantité du palier).
+# Jetons des tâches : {objectif} (quantité du palier), ou {objectif|quête|quêtes} pour l'accorder ; {quantite} dans la description.
 # Commandes : lancées par le joueur, sauf celles qui commencent par [console] ({joueur} = son pseudo).
 #
-# Un reload valide config.yml et messages.yml avant de les appliquer : si l'un est invalide, rien ne change et le
-# message donne le fichier et l'erreur. Demande un redémarrage : base-de-donnees.
+# Un reload valide les quatre fichiers avant de les appliquer : si l'un est invalide, rien ne change et le message
+# donne le fichier et l'erreur. Demande un redémarrage : base-de-donnees.
 #
 # ======================================================================== #
 
@@ -137,7 +147,9 @@ programme:
         - 9
         - 12
         - 15
-  # Commandes lancées quand le joueur récupère un jour complet.
+  # Ce que donnent ces commandes, écrit dans les menus et les messages.
+  recompense-texte: "1 diamant"
+  # Commandes lancées quand le joueur récupère le cadeau d'un jour complet.
   recompense:
     - "[console] give {joueur} diamond 1"
   # Récompense en plus (facultatif), différente chaque jour et la même pour tout le serveur : recompenses-ordre
@@ -169,32 +181,44 @@ serie:
       - "[console] give {joueur} emerald 3"
     30:
       - "[console] give {joueur} nether_star 1"
+  # Ce que donne chaque palier, écrit dans les menus et les messages.
+  gains:
+    7: "1 émeraude"
+    14: "2 émeraudes"
+    21: "3 émeraudes"
+    30: "1 étoile du Nether"
+
+# Longueur au plus de l'objectif dans le scoreboard, en caractères.
+objectif-longueur-max: 30
 
 # Objectif du moment : le premier dont toutes les conditions sont vraies.
-# « boucle » (de, a) essaie {i} de « de » à « a » et garde le premier {i} qui marche.
+# « boucle » (de, a) essaie {i} de « de » à « a » et garde le premier {i} qui marche, ou celui dont « tri » est le plus petit.
+#   texte     son nom                         faire   ce qu'il faut faire (facultatif)
+#   description, clic, icone
+# Le scoreboard montre « faire » s'il tient en objectif-longueur-max caractères, sinon le nom.
 objectifs:
   annonce:
     si:
       - "{annonce} == oui"
     texte: "{annonce_texte}"
     description:
-      - "&7Clique pour y aller."
+      - "&7Cliquez pour y aller."
     clic: "{annonce_clic}"
     icone: CLOCK
   recompense:
     si:
       - "{recompense_prete} == oui"
-    texte: "Récompense du jour à prendre"
+    texte: "Cadeau à récupérer"
     description:
-      - "&7Clique pour l'ouvrir."
-    clic: "guide"
+      - "&7Cliquez pour l'ouvrir."
+    clic: "guide recompenses"
     icone: CHEST
   presque:
     si:
       - "{tache_proche} == oui"
     texte: "{tache_proche_texte}"
     description:
-      - "&7Tu y es presque."
+      - "&7Vous y êtes presque."
     clic: "{tache_proche_clic}"
     icone: SPYGLASS
   suivante:
@@ -202,15 +226,15 @@ objectifs:
       - "{tache_suivante} == oui"
     texte: "{tache_suivante_texte}"
     description:
-      - "&7Une tâche du programme du jour."
+      - "&7Une de vos tâches du jour."
     clic: "{tache_suivante_clic}"
     icone: WRITABLE_BOOK
   bravo:
     si:
       - "{recompense_prete} == non"
-    texte: "Programme du jour fini, à demain !"
+    texte: "Tâches du jour finies, à demain !"
     description:
-      - "&7Reviens demain pour garder ta série."
+      - "&7Revenez demain pour garder votre série."
     clic: ""
     icone: CAKE
 
@@ -223,11 +247,12 @@ retour:
   dialogue-si: "%viaversion_player_protocol_id% >= 771"
   dialogue:
     - "[console] shdialogs open retour {joueur}"
-  # Nouveautés montrées au retour : seules celles parues après la dernière venue, les plus récentes d'abord.
-  nouveautes-max: 2
-  nouveautes:
-    - date: "2026-11-23"
-      texte: "Jake devient ton guide"
+  # Nouveautés (nouveautes.yml) citées au retour et dans l'accueil de Jake, les plus récentes d'abord.
+  nouveautes-max: 3
+
+# Nouveautés : jours pendant lesquels une nouveauté pas encore vue est signalée, et écriture de sa date.
+nouveautes-recentes-jours: 30
+nouveautes-date: "dd/MM"
 
 # Une annonce devient l'objectif du moment ce nombre de minutes avant le début de l'event.
 annonce-avant-minutes: 15
@@ -243,58 +268,15 @@ annonce-barre:
   minutes-avant: 30
   couleur: PURPLE
 
-menu:
-  cases:
-    jake: 4
-    objectif: 13
-    recompense: 24
-    aide: 29
-    ile: 31
-    reglages: 33
-    serie: 40
-  # Cases des tâches du jour, dans l'ordre (tâches fixes puis tâche tournante).
-  taches:
-    - 20
-    - 21
-    - 22
-    - 23
-  # Icônes : un matériau (CHEST), une tête HeadDatabase (hdb-<id>) ou une tête texturée (basehead-<base64>),
-  # comme dans DeluxeMenus. Vaut aussi pour les « icone » des tâches, objectifs et réponses.
-  icones:
-    jake: PLAYER_HEAD
-    contour: BLACK_STAINED_GLASS_PANE
-    accent: CYAN_STAINED_GLASS_PANE
-    # vide = une tâche faite garde son icône, qui brille
-    fait: ""
-    recompense-fermee: CHEST
-    recompense-prete: CHEST
-    recompense-prise: CHEST
-    aide: BOOK
-    ile: GRASS_BLOCK
-    reglages: COMPARATOR
-    serie: CAMPFIRE
-    retour: PAPER
-  ile-commande: "is"
-  reglages-commande: "jake reglages"
-
-# « Comment faire… » : un bouton par question, dix au plus. fermer = ferme le menu avant les commandes.
-aide:
-  ile:
-    icone: GRASS_BLOCK
-    nom: "&bRetourner sur mon île"
-    description:
-      - "&7Te téléporte sur ton île."
-    commandes:
-      - "is go"
-    fermer: true
-
 # Sons joués au joueur, vides = aucun.
 sons:
   ouverture: ui.toast.in
+  # clic sur un bouton qui lance une commande
   clic: ui.button.click
   tache: entity.experience_orb.pickup
   programme: ui.toast.challenge_complete
   recompense: entity.player.levelup
+  refus: entity.villager.no
 
 # ------------------------------------------------------------------------ #
 # Exemple de section accueil, désactivée par défaut : retirez « # » (et l'espace qui suit) au début de
@@ -413,12 +395,13 @@ sons:
 #         recompense:
 #           - "[console] shprogress progress {joueur} premiers-pas/box 1"
 #       metier:
-#         texte: "Montez un métier au niveau 2"
+#         texte: "Avancez une quête de métier"
 #         icone: IRON_PICKAXE
 #         description:
-#           - "   &7Miner, couper, cultiver, pêcher… tout fait monter vos métiers."
+#           - "   &7Chaque métier a sa quête du jour, &f/jobs &7les montre toutes."
+#         # une des six quêtes du jour a avancé (« 12/600 », ou « Terminé »)
 #         fait-si:
-#           - '%shjobs_player_level_bucheron% %shjobs_player_level_mineur% %shjobs_player_level_agriculteur% %shjobs_player_level_chasseur% %shjobs_player_level_artisan% %shjobs_player_level_pecheur% ~ (^|\s)([2-9]|\d{2,})(\s|$)'
+#           - '%shjobs_player_job_daily_1_progress% %shjobs_player_job_daily_2_progress% %shjobs_player_job_daily_3_progress% %shjobs_player_job_daily_4_progress% %shjobs_player_job_daily_5_progress% %shjobs_player_job_daily_6_progress% ~ (^|\s)[1-9]\d*/|Terminé'
 #         clic: "jobs"
 #         cible: "spawn -17.9 63 13.5"
 #         cible-nom: "Métiers"
@@ -434,6 +417,8 @@ sons:
 #         clic: "spawn"
 #         recompense:
 #           - "[console] shprogress progress {joueur} premiers-pas/codex 1"
+#     # Cadeau de fin, écrit dans l'écran des premiers pas, et commandes lancées à la fin.
+#     fin-texte: "1 LuckyBlock Jaune"
 #     fin:
 #       - "[console] ntdluckyblock give {joueur} YELLOW 1"
 #       - '[console] title {joueur} times 10 60 20'

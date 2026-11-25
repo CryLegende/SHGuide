@@ -63,21 +63,53 @@ class ObjectivesTest {
         assertEquals("bravo", Objectives.pick(cfg().objectives(), tokens, ID).id());
     }
 
-    @Test
-    void loopTriesEachIndex() {
-        var def = new Settings.ObjectiveDef("aventure", List.of("%q_{i}_id% ~ ^p\\d\\d_(0[1-46-8]|10)$"),
-                "%q_{i}_name%", List.of(), "quest", "MAP", 1, 4);
-        Map<String, String> v = new HashMap<>(Map.of("%q_1_id%", "p09_05", "%q_2_id%", "p09_09",
-                "%q_3_id%", "p09_03", "%q_3_name%", "Artisan IV"));
-        Resolver r = t -> {
+    private static Resolver values(Map<String, String> v) {
+        return t -> {
             for (var e : v.entrySet()) {
                 t = t.replace(e.getKey(), e.getValue());
             }
             return t;
         };
-        assertEquals("Artisan IV", Objectives.pick(List.of(def), Map.of(), r).text());
+    }
+
+    private static Settings.ObjectiveDef loop(String sort) {
+        return new Settings.ObjectiveDef("aventure", List.of("%q_{i}_id% ~ ^p\\d\\d_(0[1-46-8]|10)$"),
+                "%q_{i}_name%", "%q_{i}_todo%", List.of(), "quest", "MAP", true, 0, 4, sort);
+    }
+
+    @Test
+    void loopTriesEachIndexFromZero() {
+        Map<String, String> v = new HashMap<>(Map.of("%q_0_id%", "p09_01", "%q_0_name%", "Zéro", "%q_0_todo%", "/"));
+        assertEquals("Zéro", Objectives.pick(List.of(loop("")), Map.of(), values(v)).text());
+        v.putAll(Map.of("%q_0_id%", "p09_05", "%q_1_id%", "p09_09", "%q_3_id%", "p09_03", "%q_3_name%", "Artisan IV"));
+        assertEquals("Artisan IV", Objectives.pick(List.of(loop("")), Map.of(), values(v)).text());
         v.put("%q_3_id%", "p09_09");
-        assertNull(Objectives.pick(List.of(def), Map.of(), r));
+        assertNull(Objectives.pick(List.of(loop("")), Map.of(), values(v)));
+    }
+
+    @Test
+    void sortKeepsTheSmallest() {
+        Map<String, String> v = new HashMap<>(Map.of("%q_0_id%", "p01_09", "%q_0_name%", "Bâtisseur", "%q_1_id%", "p01_10",
+                "%q_1_name%", "Boulanger", "%q_2_id%", "p01_03", "%q_2_name%", "Bûcheron", "%q_2_todo%", "Casser 6 bûches (0/6)"));
+        var c = Objectives.pick(List.of(loop("%q_{i}_id%")), Map.of(), values(v));
+        assertEquals("Bûcheron", c.text());
+        assertEquals("Casser 6 bûches (0/6)", c.todo());
+    }
+
+    @Test
+    void todoIsForgottenWhenNothingAnswers() {
+        Map<String, String> v = new HashMap<>(Map.of("%q_0_id%", "p01_03", "%q_0_name%", "Bûcheron", "%q_0_todo%", "/"));
+        assertEquals("", Objectives.pick(List.of(loop("")), Map.of(), values(v)).todo());
+        v.remove("%q_0_todo%");
+        assertEquals("", Objectives.pick(List.of(loop("")), Map.of(), values(v)).todo());
+    }
+
+    @Test
+    void scoreboardShowsWhatToDoWhenItFits() {
+        var c = new Objectives.Choice("a", "&eBâtisseur", "Poser 32 blocs (12/32)", List.of(), "", "MAP");
+        assertEquals("Poser 32 blocs (12/32)", c.shortText(30));
+        assertEquals("&eBâtisseur", c.shortText(10));
+        assertEquals("&eBâtisseur", new Objectives.Choice("a", "&eBâtisseur", "", List.of(), "", "MAP").shortText(30));
     }
 
     @Test

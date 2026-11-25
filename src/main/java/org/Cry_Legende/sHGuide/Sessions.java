@@ -33,7 +33,15 @@ final class Sessions implements Listener {
         PlayerState state;
         Programme.Tick last;
         Objectives.Choice objective;
-        List<Settings.News> news = List.of();
+        /** Nouveautés sorties depuis la dernière venue (dialogue de retour). */
+        List<Nouveautes.Entree> news = List.of();
+        /** Revenu après une absence, et n'a pas encore ouvert Jake. */
+        boolean back;
+        /** Textes calculés à chaque vérification, lus tels quels par les placeholders. */
+        String shortObjective = "";
+        String scoreboardLine = "";
+        String alert = "";
+        int unread;
         boolean dirty;
         long lastSave;
         long joinedAt = System.currentTimeMillis();
@@ -185,11 +193,63 @@ final class Sessions implements Listener {
         tokens.put("tuto", step == null ? "non" : "oui");
         tokens.put("tuto_texte", step == null ? "" : step.text());
         tokens.put("tuto_clic", step == null ? "" : step.click());
-        tokens.put("tuto_description", step == null || step.lore().isEmpty() ? "" : step.lore().get(0));
+        tokens.put("tuto_description", step == null ? "" : String.join("\n", step.lore()));
         tokens.put("tuto_n", step == null ? "" : Integer.toString(Accueil.stepNumber(s.state, ac)));
         tokens.put("tuto_total", Integer.toString(ac.tutorial().steps().size()));
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
+        view(p, s);
         return t;
+    }
+
+    /** Recalcule ce que lisent les placeholders : objectif court, ligne du scoreboard, alerte au-dessus de Jake. */
+    void view(Player p, Session s) {
+        Settings cfg = plugin.settings();
+        Messages m = plugin.messages();
+        LocalDate today = plugin.today();
+        s.shortObjective = s.objective == null ? m.text("objectif.aucun") : s.objective.shortText(cfg.objectiveMax());
+        s.unread = plugin.nouveautes().unread(s.state, today, cfg.newsRecentDays()).size();
+        if (s.last == null) {
+            return;
+        }
+        int total = s.last.tasks().size();
+        long done = s.last.tasks().stream().filter(Programme.TaskView::done).count();
+        int serie = Streak.display(s.state, today);
+        AccueilConfig ac = cfg.accueil();
+        Map<String, String> tk = new HashMap<>();
+        tk.put("joueur", p.getName());
+        tk.put("faites", Long.toString(done));
+        tk.put("total", Integer.toString(total));
+        tk.put("serie", Integer.toString(serie));
+        tk.put("cadeaux", Integer.toString(s.state.pending.size()));
+        tk.put("nouveautes", Integer.toString(s.unread));
+        tk.put("tuto_n", Integer.toString(Accueil.stepNumber(s.state, ac)));
+        tk.put("tuto_total", Integer.toString(ac.tutorial().steps().size()));
+        Texte.Contexte c = new Texte.Contexte(tk, Map.of(), Map.of(), text -> text, plugin.menus().bar());
+        String line = Accueil.tutorialActive(s.state, ac) ? "scoreboard.tutoriel"
+                : !s.state.pending.isEmpty() ? "scoreboard.cadeau" : serie > 0 ? "scoreboard.serie" : "scoreboard.taches";
+        s.scoreboardLine = Texte.line(m.text(line), c);
+        String alert = !s.state.pending.isEmpty() ? "alerte.cadeau" : s.unread > 0 ? "alerte.nouveautes"
+                : !today.toString().equals(s.state.alertSeen) ? "alerte.taches" : "";
+        s.alert = alert.isEmpty() ? "" : Texte.line(m.text(alert), c);
+    }
+
+    /** Lignes du retour guidé : nouveautés depuis la dernière venue, cadeau qui attend, objectif (messages.yml, retour.lignes). */
+    List<String> returnText(Player p, Session s) {
+        Settings cfg = plugin.settings();
+        int shown = Math.min(cfg.newsMax(), s.news.size());
+        List<String> list = new ArrayList<>();
+        for (Nouveautes.Entree n : s.news.subList(0, shown)) {
+            list.add(plugin.messages().text("retour.nouveaute", "titre", n.title()));
+        }
+        Map<String, String> tk = new HashMap<>();
+        tk.put("joueur", p.getName());
+        tk.put("nouveautes", Integer.toString(s.news.size()));
+        tk.put("autres", Integer.toString(s.news.size() - shown));
+        tk.put("cadeaux", Integer.toString(s.state.pending.size()));
+        Objectives.Choice o = s.objective;
+        tk.put("objectif", o == null ? plugin.messages().text("objectif.aucun") : o.todo().isEmpty() ? o.text() : o.todo());
+        return Texte.lines(plugin.messages().lines("retour.lignes"), new Texte.Contexte(tk, Map.of(),
+                Map.of("nouveautes_liste", list), text -> PlaceholderAPI.setPlaceholders(p, text), plugin.menus().bar()));
     }
 
     void markDirty(Player p) {

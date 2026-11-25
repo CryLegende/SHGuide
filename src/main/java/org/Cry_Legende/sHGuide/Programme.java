@@ -126,7 +126,7 @@ final class Programme {
                 }
             }
             boolean done = s.done.contains(def.id()) || current >= goal;
-            String text = Tokens.apply(def.text(), Map.of("objectif", Num.format(goal)));
+            String text = Texte.simple(def.text(), Map.of("objectif", Num.format(goal)));
             TaskView view = new TaskView(def, text, done ? Math.max(current, goal) : current, goal, done);
             if (done && s.done.add(def.id())) {
                 newly.add(view);

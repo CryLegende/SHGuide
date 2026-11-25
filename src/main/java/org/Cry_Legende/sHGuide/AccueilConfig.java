@@ -23,7 +23,8 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
     }
 
     /** « barTicks » : ticks entre deux mises à jour de la barre ; « fullTicks » : temps où une étape faite la garde pleine. */
-    record Tutorial(List<Step> steps, BossBar.Color color, List<String> end, int checkSeconds, int barTicks, int fullTicks) {
+    record Tutorial(List<Step> steps, BossBar.Color color, List<String> end, String endText, int checkSeconds, int barTicks,
+                    int fullTicks) {
     }
 
     /**
@@ -57,7 +58,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
     static final AccueilConfig DISABLED = new AccueilConfig(false,
             new Stay(10, "", "", List.of(), BossBar.Color.YELLOW),
             new Tomorrow(3, "", List.of(), "", List.of(), 60, 15, BossBar.Color.BLUE),
-            new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), 2, 4, 25),
+            new Tutorial(List.of(), BossBar.Color.GREEN, List.of(), "", 2, 4, 25),
             null,
             new Arrow(false, "SPECTRAL_ARROW", 0.8f, 2.2, 0.7, 6, 4, -1, 0, 0.6f, 0.35, FlecheReglages.DEFAULT));
 
@@ -76,7 +77,7 @@ record AccueilConfig(boolean enabled, Stay stay, Tomorrow tomorrow, Tutorial tut
                 Math.max(0, d.getInt("rappel-secondes", 15)), color(d.getString("couleur-barre", "BLUE")));
         ConfigurationSection t = c.getConfigurationSection("tutoriel");
         Tutorial tutorial = t == null ? DISABLED.tutorial() : new Tutorial(steps(t.getConfigurationSection("etapes")),
-                color(t.getString("couleur-barre", "GREEN")), List.copyOf(t.getStringList("fin")),
+                color(t.getString("couleur-barre", "GREEN")), List.copyOf(t.getStringList("fin")), t.getString("fin-texte", ""),
                 Math.max(1, t.getInt("verification-secondes", 2)), Math.max(1, t.getInt("barre-ticks", 4)),
                 Math.max(0, t.getInt("barre-pleine-ticks", 25)));
         ConfigurationSection a = c.getConfigurationSection("arrivee");

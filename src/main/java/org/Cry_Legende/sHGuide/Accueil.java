@@ -119,7 +119,7 @@ final class Accueil {
             }
             Messages m = plugin.messages();
             m.send(p, "accueil-demain-pret", "gain", t.text());
-            m.sendClickable(p, "retour.bouton", "guide");
+            m.sendClickable(p, "retour.bouton-cadeau", "guide recompenses");
         }, t.delayTicks());
     }
 
@@ -206,7 +206,7 @@ final class Accueil {
         hide(stayBars, p);
         Messages m = plugin.messages();
         m.send(p, "accueil-rester", "gain", st.text(), "minutes", Integer.toString(st.minutes()));
-        m.sendClickable(p, "retour.bouton", "guide");
+        m.sendClickable(p, "retour.bouton-cadeau", "guide recompenses");
         plugin.sound(p, "cadeau");
         AccueilConfig.Tomorrow t = c.tomorrow();
         if (!t.commands().isEmpty() && daysSinceFirst(s.state, today) == 0) {

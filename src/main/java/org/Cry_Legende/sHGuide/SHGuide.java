@@ -7,6 +7,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -16,11 +17,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Jake, le guide du joueur : objectif du moment, programme du jour, série, retour guidé, « Comment faire… ». */
+/** Jake, le guide du joueur : objectif du moment, tâches du jour, récompenses, nouveautés, retour guidé, accueil. */
 public final class SHGuide extends JavaPlugin {
 
-    private volatile Settings settings;
-    private volatile Messages messages;
+    /** Les quatre fichiers, lus ensemble : un reload les remplace tous d'un coup, ou aucun. */
+    private record Files(Settings settings, MenusConfig menus, Nouveautes nouveautes, Messages messages) {
+    }
+
+    private volatile Files files;
     private HikariDataSource pool;
     private GuideStore store;
     private Sessions sessions;
@@ -29,24 +33,26 @@ public final class SHGuide extends JavaPlugin {
     private Fleche fleche;
     private Arrivee arrivee;
     private AnnonceBarre annonceBarre;
+    private Origine origine;
     private final Annonces annonces = new Annonces();
     private GuideExpansion expansion;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        if (!new File(getDataFolder(), "messages.yml").exists()) {
-            saveResource("messages.yml", false);
+        for (String name : List.of("messages.yml", "menus.yml", "nouveautes.yml")) {
+            if (!new File(getDataFolder(), name).exists()) {
+                saveResource(name, false);
+            }
         }
         try {
-            settings = readSettings();
-            messages = new Messages(loadMessages());
-        } catch (RuntimeException e) {
-            getLogger().severe("config.yml ou messages.yml invalide, SHGuide s'arrête : " + e.getMessage());
+            files = readFiles();
+        } catch (InvalidFile e) {
+            getLogger().severe(e.name + " invalide, SHGuide s'arrête : " + e.getMessage());
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        Settings.DbConfig db = settings.db();
+        Settings.DbConfig db = settings().db();
         HikariConfig hc = new HikariConfig();
         hc.setJdbcUrl("jdbc:mariadb://" + db.host() + ":" + db.port() + "/" + db.database());
         hc.setUsername(db.user());
@@ -69,8 +75,10 @@ public final class SHGuide extends JavaPlugin {
         fleche = new Fleche(this);
         arrivee = new Arrivee(this);
         annonceBarre = new AnnonceBarre(this);
+        origine = new Origine(this);
         getServer().getPluginManager().registerEvents(sessions, this);
         getServer().getPluginManager().registerEvents(new GuideMenu.Listener(this), this);
+        getServer().getPluginManager().registerEvents(origine, this);
         getServer().getPluginManager().registerEvents(arrivee, this);
         getServer().getPluginManager().registerEvents(fleche, this);
         GuideCommands commands = new GuideCommands(this);
@@ -92,6 +100,12 @@ public final class SHGuide extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // les écrans ouverts ne répondraient plus aux clics
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (GuideMenu.isOurs(p.getOpenInventory().getTopInventory())) {
+                p.closeInventory();
+            }
+        }
         if (expansion != null) {
             expansion.unregister();
         }
@@ -115,59 +129,103 @@ public final class SHGuide extends JavaPlugin {
         }
     }
 
-    /** Recharge config.yml et messages.yml ; un fichier invalide ne change rien et le message le nomme. */
+    /** Recharge les quatre fichiers ; si l'un est invalide, rien ne change et le message le nomme. */
     boolean reload(CommandSender sender) {
-        Settings s;
-        Messages m;
+        Files next;
         try {
-            s = readSettings();
-        } catch (RuntimeException e) {
-            messages.send(sender, "reload-erreur", "fichier", "config.yml", "erreur", e.getMessage());
+            next = readFiles();
+        } catch (InvalidFile e) {
+            messages().send(sender, "reload-erreur", "fichier", e.name, "erreur", e.getMessage());
             return false;
         }
-        try {
-            m = new Messages(loadMessages());
-        } catch (RuntimeException e) {
-            messages.send(sender, "reload-erreur", "fichier", "messages.yml", "erreur", e.getMessage());
-            return false;
-        }
-        settings = s;
+        files = next;
         Icons.clear();
-        messages = m;
-        messages.send(sender, "reload-ok");
+        messages().send(sender, "reload-ok");
         return true;
     }
 
-    private Settings readSettings() {
-        YamlConfiguration file = new YamlConfiguration();
-        try {
-            file.load(new File(getDataFolder(), "config.yml"));
-        } catch (Exception e) {
-            throw new IllegalArgumentException(e.getMessage());
+    /** Fichier illisible ou incohérent, et lequel. */
+    private static final class InvalidFile extends RuntimeException {
+        private final String name;
+
+        private InvalidFile(String name, RuntimeException cause) {
+            super(String.valueOf(cause.getMessage()), cause);
+            this.name = name;
         }
-        return Settings.read(file);
     }
 
-    private YamlConfiguration loadMessages() {
+    private Files readFiles() {
+        Settings s = read("config.yml", Settings::read);
+        MenusConfig menus = read("menus.yml", MenusConfig::read);
+        Nouveautes news = read("nouveautes.yml", Nouveautes::read);
+        Messages m = read("messages.yml", file -> {
+            InputStream defaults = getResource("messages.yml");
+            if (defaults != null) {
+                file.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defaults, StandardCharsets.UTF_8)));
+            }
+            return new Messages(file);
+        });
+        checkTasks(s, menus);
+        return new Files(s, menus, news, m);
+    }
+
+    private <T> T read(String name, java.util.function.Function<YamlConfiguration, T> reader) {
         YamlConfiguration file = new YamlConfiguration();
         try {
-            file.load(new File(getDataFolder(), "messages.yml"));
+            file.load(new File(getDataFolder(), name));
+            return reader.apply(file);
+        } catch (RuntimeException e) {
+            throw new InvalidFile(name, e);
         } catch (Exception e) {
-            throw new IllegalArgumentException(e.getMessage());
+            throw new InvalidFile(name, new IllegalArgumentException(e.getMessage()));
         }
-        InputStream defaults = getResource("messages.yml");
-        if (defaults != null) {
-            file.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defaults, StandardCharsets.UTF_8)));
+    }
+
+    /** Les zones « taches » ont assez de cases pour les tâches d'un jour. */
+    private static void checkTasks(Settings s, MenusConfig menus) {
+        int daily = s.tasks().size() + (s.rotating().isEmpty() ? 0 : 1);
+        for (MenusConfig.Ecran e : menus.screens().values()) {
+            MenusConfig.Zone z = e.zones().get("taches");
+            if (z != null && z.slots().size() < daily) {
+                throw new InvalidFile("menus.yml", new IllegalArgumentException("menus." + e.id() + ".zones.taches.cases : "
+                        + daily + " cases attendues pour les tâches du jour"));
+            }
         }
-        return file;
+    }
+
+    /** Coupe ou remet la flèche du tutoriel. */
+    void toggleArrow(Player p) {
+        Sessions.Session s = sessions.get(p.getUniqueId());
+        if (s == null) {
+            messages().send(p, "chargement");
+            return;
+        }
+        s.state.arrowOff = !s.state.arrowOff;
+        sessions.markDirty(p);
+        if (s.state.arrowOff) {
+            fleche.setTarget(p, null, "");
+        }
+        messages().send(p, s.state.arrowOff ? "fleche-off" : "fleche-on");
     }
 
     Settings settings() {
-        return settings;
+        return files.settings();
+    }
+
+    MenusConfig menus() {
+        return files.menus();
+    }
+
+    Nouveautes nouveautes() {
+        return files.nouveautes();
     }
 
     Messages messages() {
-        return messages;
+        return files.messages();
+    }
+
+    Origine origine() {
+        return origine;
     }
 
     Sessions sessions() {
@@ -203,7 +261,7 @@ public final class SHGuide extends JavaPlugin {
     }
 
     LocalDate today() {
-        return LocalDate.now(settings.zone());
+        return LocalDate.now(settings().zone());
     }
 
     void sync(Runnable r) {
@@ -220,13 +278,26 @@ public final class SHGuide extends JavaPlugin {
             if (cmd.startsWith("[console]")) {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.substring("[console]".length()).trim());
             } else {
-                p.performCommand(cmd.startsWith("/") ? cmd.substring(1) : cmd);
+                playerCommand(p, cmd);
             }
         }
     }
 
+    /**
+     * Commande du joueur, comme s'il l'avait tapée : performCommand seul n'avertit pas les plugins qui écoutent les commandes
+     * (menus DeluxeMenus, restrictions de combat...).
+     */
+    void playerCommand(Player p, String command) {
+        PlayerCommandPreprocessEvent e = new PlayerCommandPreprocessEvent(p, command.startsWith("/") ? command : "/" + command);
+        Bukkit.getPluginManager().callEvent(e);
+        String typed = e.getMessage().startsWith("/") ? e.getMessage().substring(1) : e.getMessage();
+        if (!e.isCancelled() && !typed.isBlank()) {
+            p.performCommand(typed);
+        }
+    }
+
     void sound(Player p, String key) {
-        String name = settings.sounds().get(key);
+        String name = settings().sounds().get(key);
         if (name != null && !name.isEmpty()) {
             p.playSound(p.getLocation(), name, 1f, 1f);
         }

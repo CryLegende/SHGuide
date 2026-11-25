@@ -10,7 +10,13 @@ final class Objectives {
     private Objectives() {
     }
 
-    record Choice(String id, String text, List<String> lore, String click, String icon) {
+    /** « text » : son nom ; « todo » : ce qu'il faut faire, vide si la config ne le dit pas. */
+    record Choice(String id, String text, String todo, List<String> lore, String click, String icon) {
+
+        /** Pour le scoreboard : ce qu'il faut faire si cela tient en « max » caractères, sinon son nom. */
+        String shortText(int max) {
+            return !todo.isEmpty() && Texte.strip(todo).length() <= max ? todo : text;
+        }
     }
 
     /** Jetons que le guide calcule lui-même : annonce, récompense, tâche presque finie, prochaine tâche. */
@@ -46,30 +52,48 @@ final class Objectives {
 
     static Choice pick(List<Settings.ObjectiveDef> defs, Map<String, String> tokens, Resolver r) {
         for (Settings.ObjectiveDef d : defs) {
-            boolean loop = d.loopFrom() != 0;
-            int from = loop ? d.loopFrom() : 0;
-            int to = loop ? d.loopTo() : 0;
-            for (int i = from; i <= to; i++) {
+            Resolver best = null;
+            String bestKey = null;
+            for (int i = d.loopFrom(); i <= d.loopTo(); i++) {
                 Map<String, String> tk = new HashMap<>(tokens);
-                if (loop) {
+                if (d.loop()) {
                     tk.put("i", Integer.toString(i));
                 }
                 Resolver withTokens = text -> r.resolve(Tokens.apply(text, tk));
-                boolean ok = true;
-                for (String cond : d.conditions()) {
-                    if (!Condition.test(cond, withTokens)) {
-                        ok = false;
-                        break;
-                    }
+                if (!matches(d, withTokens)) {
+                    continue;
                 }
-                if (ok) {
-                    return new Choice(d.id(), withTokens.resolve(d.text()),
-                            d.lore().stream().map(withTokens::resolve).toList(),
-                            withTokens.resolve(d.click()).trim(), d.icon());
+                if (d.sort().isEmpty()) {
+                    best = withTokens;
+                    break;
                 }
+                String key = withTokens.resolve(d.sort());
+                if (bestKey == null || key.compareTo(bestKey) < 0) {
+                    bestKey = key;
+                    best = withTokens;
+                }
+            }
+            if (best != null) {
+                return new Choice(d.id(), best.resolve(d.text()), todo(best.resolve(d.todo())),
+                        d.lore().stream().map(best::resolve).toList(), best.resolve(d.click()).trim(), d.icon());
             }
         }
         return null;
+    }
+
+    private static boolean matches(Settings.ObjectiveDef d, Resolver r) {
+        for (String cond : d.conditions()) {
+            if (!Condition.test(cond, r)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** « / » est ce que QuestCreator répond quand il n'a rien à dire ; un placeholder resté écrit n'a pas été lu. */
+    private static String todo(String text) {
+        String t = text.trim();
+        return t.equals("/") || t.indexOf('%') >= 0 ? "" : t;
     }
 
     private static String yes(boolean b) {

@@ -48,7 +48,14 @@ final class GuideExpansion extends PlaceholderExpansion {
         String key = params.toLowerCase(Locale.ROOT);
         switch (key) {
             case "objectif":
+                return s.shortObjective;
+            case "objectif_nom":
                 return s.objective == null ? plugin.messages().text("objectif.aucun") : s.objective.text();
+            case "objectif_faire":
+                return s.objective == null ? plugin.messages().text("objectif.aucun")
+                        : s.objective.todo().isEmpty() ? s.objective.text() : s.objective.todo();
+            case "ligne":
+                return s.scoreboardLine;
             case "objectif_detail":
                 return s.objective == null || s.objective.lore().isEmpty() ? "" : s.objective.lore().get(0);
             case "programme":
@@ -63,10 +70,20 @@ final class GuideExpansion extends PlaceholderExpansion {
                 return Streak.jokerAvailable(s.state, today) ? "oui" : "non";
             case "recompense_prete":
                 return s.state.pending.isEmpty() ? "non" : "oui";
+            case "cadeaux":
+                return Integer.toString(s.state.pending.size());
             case "alerte":
-                return !s.state.pending.isEmpty() || !today.toString().equals(s.state.alertSeen) ? "oui" : "non";
+                return s.alert.isEmpty() ? "non" : "oui";
+            case "alerte_texte":
+                return s.alert;
+            case "fin_jour":
+                return Jetons.untilMidnight(plugin.settings(), plugin.messages());
             case "nouveautes_nombre":
                 return Integer.toString(s.news.size());
+            case "nouveautes_non_lues":
+                return Integer.toString(s.unread);
+            case "retour":
+                return player instanceof org.bukkit.entity.Player p ? String.join("\n", plugin.sessions().returnText(p, s)) : "";
             case "accueil_temps": {
                 AccueilConfig ac = plugin.settings().accueil();
                 return Accueil.stayActive(s.state, ac, today)
@@ -95,7 +112,7 @@ final class GuideExpansion extends PlaceholderExpansion {
         if (key.startsWith("nouveaute_")) {
             try {
                 int n = Integer.parseInt(key.substring("nouveaute_".length()));
-                return n >= 1 && n <= s.news.size() ? s.news.get(n - 1).text() : "";
+                return n >= 1 && n <= s.news.size() ? s.news.get(n - 1).title() : "";
             } catch (NumberFormatException e) {
                 return null;
             }

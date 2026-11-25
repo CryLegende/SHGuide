@@ -32,10 +32,12 @@ public final class PlayerState {
     public int best;
     /** Semaines dont le joker est utilisé (2026-W48). */
     public Set<String> jokerWeeks = new HashSet<>();
-    /** Récompenses à récupérer dans le menu : « jour:<id> », « palier:7 » ou « accueil:rester ». */
+    /** Cadeaux à récupérer dans le menu : « jour:<id> », « palier:7 », « accueil:rester » ou « accueil:demain ». */
     public List<String> pending = new ArrayList<>();
     /** Dernier jour de connexion. */
     public String lastSeen;
+    /** Nouveautés déjà vues dans l'écran des nouveautés (clés de nouveautes.yml). */
+    public Set<String> newsRead = new HashSet<>();
     /** Dernier jour où le menu a été ouvert. */
     public String alertSeen;
     /** Premier jour d'un nouveau joueur (accueil) ; null pour un joueur venu avant l'accueil. */
@@ -82,6 +84,9 @@ public final class PlayerState {
         }
         if (welcome == null) {
             welcome = new HashSet<>();
+        }
+        if (newsRead == null) {
+            newsRead = new HashSet<>();
         }
         if (tutoDone == null) {
             tutoDone = new HashSet<>();

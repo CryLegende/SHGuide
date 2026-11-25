@@ -4,10 +4,8 @@ import org.bukkit.configuration.ConfigurationSection;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,12 +14,12 @@ import java.util.TreeMap;
 
 /** config.yml lu une fois par chargement ; tout est immuable ensuite. */
 record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySeconds, double nearRatio, String palierPlaceholder,
-                List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward, List<DailyVariant> dailyVariants,
-                int cycle, Map<Integer, List<String>> steps, List<ObjectiveDef> objectives,
+                List<TaskDef> tasks, List<TaskDef> rotating, List<String> dailyReward, String dailyRewardText,
+                List<DailyVariant> dailyVariants, int cycle, Map<Integer, List<String>> steps, Map<Integer, String> gains,
+                List<ObjectiveDef> objectives, int objectiveMax,
                 int returnDays, long returnDelayTicks, String dialogCondition, List<String> dialogCommands,
-                List<News> news, int newsMax, int annonceBeforeMinutes, int annonceGraceMinutes,
-                Map<String, Integer> slots, List<Integer> taskSlots, String islandCommand, String settingsCommand,
-                Map<String, String> icons, List<HelpEntry> help, Map<String, String> sounds, DbConfig db,
+                int newsMax, int newsRecentDays, DateTimeFormatter newsDate, int annonceBeforeMinutes, int annonceGraceMinutes,
+                Map<String, String> sounds, DbConfig db,
                 AccueilConfig accueil, AnnonceBarre.Config annonceBar, List<Fleche.Source> arrowSources) {
 
     /**
@@ -45,14 +43,12 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
         }
     }
 
-    record ObjectiveDef(String id, List<String> conditions, String text, List<String> lore, String click,
-                        String icon, int loopFrom, int loopTo) {
-    }
-
-    record HelpEntry(String id, String icon, String name, List<String> lore, List<String> commands, boolean close) {
-    }
-
-    record News(LocalDate date, String text) {
+    /**
+     * Objectif du moment : « text » son nom, « todo » ce qu'il faut faire (facultatif). Avec « loop », {i} est essayé de
+     * « loopFrom » à « loopTo » ; « sort » départage ceux qui marchent (le plus petit texte), sinon le premier gagne.
+     */
+    record ObjectiveDef(String id, List<String> conditions, String text, String todo, List<String> lore, String click,
+                        String icon, boolean loop, int loopFrom, int loopTo, String sort) {
     }
 
     /** Récompense en plus de « recompense », différente selon le jour (programme.recompenses-du-jour). */
@@ -111,6 +107,11 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
         return steps.keySet();
     }
 
+    /** Ce que donne le palier de ce jour, en texte ; vide si ce jour n'est pas un palier. */
+    String gain(int day) {
+        return gains.getOrDefault(day, "");
+    }
+
     static Settings read(ConfigurationSection c) {
         ConfigurationSection prog = need(c, "programme");
         List<TaskDef> tasks = tasks(prog, "programme.taches", "taches");
@@ -133,6 +134,18 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
             }
         }
 
+        Map<Integer, String> gains = new TreeMap<>();
+        ConfigurationSection gainTexts = serie.getConfigurationSection("gains");
+        if (gainTexts != null) {
+            for (String k : gainTexts.getKeys(false)) {
+                try {
+                    gains.put(Integer.parseInt(k), gainTexts.getString(k, ""));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("serie.gains." + k + " : un numéro de jour est attendu");
+                }
+            }
+        }
+
         List<ObjectiveDef> objectives = new ArrayList<>();
         ConfigurationSection obj = need(c, "objectifs");
         for (String id : obj.getKeys(false)) {
@@ -148,63 +161,13 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
                 }
             }
             ConfigurationSection loop = o.getConfigurationSection("boucle");
-            objectives.add(new ObjectiveDef(id, List.copyOf(si), o.getString("texte", ""),
+            objectives.add(new ObjectiveDef(id, List.copyOf(si), o.getString("texte", ""), o.getString("faire", ""),
                     List.copyOf(o.getStringList("description")), o.getString("clic", ""), o.getString("icone", "PAPER"),
-                    loop == null ? 0 : Math.max(1, loop.getInt("de", 1)), loop == null ? 0 : loop.getInt("a", 1)));
+                    loop != null, loop == null ? 0 : Math.max(0, loop.getInt("de", 1)), loop == null ? 0 : loop.getInt("a", 1),
+                    loop == null ? "" : loop.getString("tri", "")));
         }
 
         ConfigurationSection ret = need(c, "retour");
-        List<News> news = new ArrayList<>();
-        for (Map<?, ?> m : ret.getMapList("nouveautes")) {
-            Object date = m.get("date");
-            Object text = m.get("texte");
-            if (date == null || text == null) {
-                throw new IllegalArgumentException("retour.nouveautes : date et texte attendus");
-            }
-            // SnakeYAML lit une date sans guillemets comme un Date à minuit UTC
-            LocalDate day;
-            try {
-                day = date instanceof Date d ? d.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
-                        : LocalDate.parse(date.toString().trim());
-            } catch (DateTimeParseException e) {
-                throw new IllegalArgumentException("retour.nouveautes : date « " + date + " » illisible (2026-11-23)");
-            }
-            news.add(new News(day, text.toString()));
-        }
-
-        ConfigurationSection menu = need(c, "menu");
-        Map<String, Integer> slots = new LinkedHashMap<>();
-        ConfigurationSection cases = need(menu, "cases");
-        for (String k : cases.getKeys(false)) {
-            slots.put(k, cases.getInt(k));
-        }
-        List<Integer> taskSlots = menu.getIntegerList("taches");
-        int dailyCount = tasks.size() + (rotating.isEmpty() ? 0 : 1);
-        if (taskSlots.size() < dailyCount) {
-            throw new IllegalArgumentException("menu.taches : " + dailyCount + " cases attendues pour les tâches du jour");
-        }
-        Map<String, String> icons = new LinkedHashMap<>();
-        ConfigurationSection ic = need(menu, "icones");
-        for (String k : ic.getKeys(false)) {
-            icons.put(k, ic.getString(k));
-        }
-
-        List<HelpEntry> help = new ArrayList<>();
-        ConfigurationSection aide = c.getConfigurationSection("aide");
-        if (aide != null) {
-            for (String id : aide.getKeys(false)) {
-                ConfigurationSection a = aide.getConfigurationSection(id);
-                if (a == null) {
-                    throw new IllegalArgumentException("aide." + id + " : section attendue");
-                }
-                help.add(new HelpEntry(id, a.getString("icone", "PAPER"), a.getString("nom", id),
-                        List.copyOf(a.getStringList("description")), List.copyOf(a.getStringList("commandes")),
-                        a.getBoolean("fermer", true)));
-            }
-        }
-        if (help.size() > 10) {
-            throw new IllegalArgumentException("aide : dix questions au plus");
-        }
         Map<String, String> sounds = new LinkedHashMap<>();
         ConfigurationSection so = c.getConfigurationSection("sons");
         if (so != null) {
@@ -218,18 +181,27 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, int joinDelaySe
                 Math.max(1, c.getInt("verification-secondes", 10)), Math.max(1, c.getInt("verification-par-tick", 1)), Math.max(0, c.getInt("depart-apres-connexion-secondes", 30)),
                 c.getDouble("seuil-presque", 0.8),
                 c.getString("palier", "1"), List.copyOf(tasks), List.copyOf(rotating),
-                List.copyOf(prog.getStringList("recompense")), variants(prog), cycle, steps, List.copyOf(objectives),
+                List.copyOf(prog.getStringList("recompense")), prog.getString("recompense-texte", ""), variants(prog), cycle,
+                steps, gains, List.copyOf(objectives), Math.max(1, c.getInt("objectif-longueur-max", 30)),
                 Math.max(1, ret.getInt("jours", 3)), Math.max(0, ret.getLong("delai-ticks", 60)),
-                ret.getString("dialogue-si", ""), List.copyOf(ret.getStringList("dialogue")), List.copyOf(news),
-                Math.max(0, ret.getInt("nouveautes-max", 2)), Math.max(0, c.getInt("annonce-avant-minutes", 15)),
-                Math.max(0, c.getInt("annonce-apres-debut-minutes", 5)),
-                slots, List.copyOf(taskSlots), menu.getString("ile-commande", "is"),
-                menu.getString("reglages-commande", "jake reglages"), icons, List.copyOf(help), sounds,
+                ret.getString("dialogue-si", ""), List.copyOf(ret.getStringList("dialogue")),
+                Math.max(0, ret.getInt("nouveautes-max", 3)), Math.max(1, c.getInt("nouveautes-recentes-jours", 30)),
+                newsDate(c), Math.max(0, c.getInt("annonce-avant-minutes", 15)),
+                Math.max(0, c.getInt("annonce-apres-debut-minutes", 5)), sounds,
                 new DbConfig(db.getString("hote", "127.0.0.1"), db.getInt("port", 3306), db.getString("base", "minecraft"),
                         db.getString("utilisateur", ""), db.getString("mot-de-passe", "")),
                 AccueilConfig.read(c.getConfigurationSection("accueil")),
                 AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")),
                 arrowSources(c.getConfigurationSection("fleches")));
+    }
+
+    private static DateTimeFormatter newsDate(ConfigurationSection c) {
+        String pattern = c.getString("nouveautes-date", "dd/MM");
+        try {
+            return DateTimeFormatter.ofPattern(pattern);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("nouveautes-date : format « " + pattern + " » illisible (dd/MM)");
+        }
     }
 
     private static List<Fleche.Source> arrowSources(ConfigurationSection sec) {

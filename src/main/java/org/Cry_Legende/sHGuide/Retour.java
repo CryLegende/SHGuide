@@ -6,8 +6,6 @@ import org.bukkit.entity.Player;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
-import java.util.List;
 
 /** Accueil d'un joueur revenu après « retour.jours » jours ou plus : dialogue, ou chat pour les anciennes versions. */
 final class Retour {
@@ -32,23 +30,14 @@ final class Retour {
         }
     }
 
-    /** Nouveautés parues après la dernière venue et pas après aujourd'hui, les plus récentes d'abord. */
-    static List<Settings.News> newsSince(List<Settings.News> all, String lastSeen, LocalDate today, int max) {
-        if (lastSeen == null) {
-            return List.of();
-        }
-        LocalDate seen = LocalDate.parse(lastSeen);
-        return all.stream().filter(n -> n.date().isAfter(seen) && !n.date().isAfter(today))
-                .sorted(Comparator.comparing(Settings.News::date).reversed()).limit(max).toList();
-    }
-
     /** @return vrai si le joueur revient après une absence (dialogue de retour prévu). */
     boolean onSessionReady(Player p, Sessions.Session s) {
         Settings cfg = plugin.settings();
         LocalDate today = plugin.today();
         String previous = s.state.lastSeen;
         boolean back = isReturn(previous, today, cfg.returnDays());
-        s.news = back ? newsSince(cfg.news(), previous, today, cfg.newsMax()) : List.of();
+        s.back = back;
+        s.news = back ? plugin.nouveautes().since(previous, today) : java.util.List.of();
         if (!today.toString().equals(previous)) {
             s.state.lastSeen = today.toString();
             s.dirty = true;
@@ -67,14 +56,15 @@ final class Retour {
                 return;
             }
             Messages m = plugin.messages();
-            String objective = s.objective == null ? m.text("objectif.aucun") : s.objective.text();
-            for (String line : m.lines("retour.chat", "joueur", p.getName(), "objectif", objective)) {
+            for (String line : m.lines("retour.chat", "joueur", p.getName())) {
                 p.sendMessage(Messages.chat(line));
             }
-            for (Settings.News n : s.news) {
-                p.sendMessage(Messages.chat(m.text("retour.nouveaute", "texte", n.text())));
+            for (String line : plugin.sessions().returnText(p, s)) {
+                p.sendMessage(Messages.chat(line));
             }
-            m.sendClickable(p, "retour.bouton", "guide");
+            boolean gift = !s.state.pending.isEmpty();
+            m.sendClickable(p, gift ? "retour.bouton-cadeau" : s.news.isEmpty() ? "retour.bouton" : "retour.bouton-nouveautes",
+                    gift ? "guide recompenses" : s.news.isEmpty() ? "guide" : "guide nouveautes");
         }, cfg.returnDelayTicks());
         return true;
     }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,10 +32,12 @@ class SettingsTest {
         assertEquals(9, s.rotating().get(0).goal(3));
         assertEquals(Set.of(7, 14, 21, 30), s.stepDays());
         assertEquals(5, s.objectives().size());
-        assertEquals(List.of(20, 21, 22, 23), s.taskSlots());
         assertEquals(3, s.tasksFor(LocalDate.parse("2026-11-23")).size());
-        assertEquals(LocalDate.parse("2026-11-23"), s.news().get(0).date());
-        assertEquals(1, s.help().size());
+        assertEquals("1 diamant", s.dailyRewardText());
+        assertEquals("2 émeraudes", s.gain(14));
+        assertEquals("", s.gain(15));
+        assertEquals(30, s.objectiveMax());
+        assertEquals("24/11", LocalDate.parse("2026-11-24").format(s.newsDate()));
     }
 
     @Test
@@ -49,11 +52,26 @@ class SettingsTest {
     }
 
     @Test
-    void unquotedNewsDateIsRead() {
-        YamlConfiguration c = YamlConfiguration.loadConfiguration(new java.io.StringReader(
-                example().saveToString().replaceAll("date: ['\"]?2026-11-23['\"]?", "date: 2026-11-23")));
-        assertTrue(((java.util.Map<?, ?>) c.getMapList("retour.nouveautes").get(0)).get("date") instanceof java.util.Date);
-        assertEquals(LocalDate.parse("2026-11-23"), Settings.read(c).news().get(0).date());
+    void loopCanStartAtZero() {
+        YamlConfiguration c = example();
+        c.set("objectifs.suivante.boucle.de", 0);
+        c.set("objectifs.suivante.boucle.a", 12);
+        c.set("objectifs.suivante.boucle.tri", "%q_{i}%");
+        Settings.ObjectiveDef o = Settings.read(c).objectives().stream().filter(d -> d.id().equals("suivante")).findFirst().orElseThrow();
+        assertTrue(o.loop());
+        assertEquals(0, o.loopFrom());
+        assertEquals("%q_{i}%", o.sort());
+        assertFalse(Settings.read(example()).objectives().get(0).loop());
+    }
+
+    @Test
+    void badGainDayAndDateFormatAreNamed() {
+        YamlConfiguration c = example();
+        c.set("serie.gains.sept", "x");
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> Settings.read(c)).getMessage().contains("serie.gains.sept"));
+        YamlConfiguration d = example();
+        d.set("nouveautes-date", "jj/{{");
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> Settings.read(d)).getMessage().contains("nouveautes-date"));
     }
 
     @Test
