@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Cadeaux en attente d'un joueur : « jour:&lt;id&gt; » (cadeau du jour, « jour » avant la 1.2), « palier:7 » (palier de la
@@ -64,12 +65,27 @@ final class Recompenses {
         return out;
     }
 
-    private static int step(String id) {
+    static int step(String id) {
         try {
             return Integer.parseInt(id.substring("palier:".length()));
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /** Sorte d'un cadeau pour les moments : jour, palier, bienvenue ou demain ; vide si l'identifiant est inconnu. */
+    static String sorte(String id) {
+        if (isDaily(id)) {
+            return "jour";
+        }
+        if (id.startsWith("palier:")) {
+            return "palier";
+        }
+        return switch (id) {
+            case "accueil:rester" -> "bienvenue";
+            case "accueil:demain" -> "demain";
+            default -> "";
+        };
     }
 
     /** Donne les cadeaux désignés ; faux (et un message) s'il n'y a rien à prendre. */
@@ -115,6 +131,12 @@ final class Recompenses {
         }
         plugin.sound(p, "recompense");
         plugin.sessions().refresh(p);
+        for (String id : picked) {
+            String sorte = sorte(id);
+            if (!sorte.isEmpty()) {
+                plugin.moments().fire(p, Moments.CADEAU_PRIS, Map.of("sorte", sorte));
+            }
+        }
         return true;
     }
 }

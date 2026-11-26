@@ -176,6 +176,7 @@ final class Sessions implements Listener {
         Resolver r = s.reader.with(text -> PlaceholderAPI.setPlaceholders(p, text), cfg.slowPlaceholders(), now);
         LocalDate today = plugin.today();
         boolean canBaseline = System.currentTimeMillis() - s.joinedAt >= cfg.joinDelaySeconds() * 1000L;
+        int giftsBefore = s.state.pending.size();
         Programme.Tick t = Programme.update(s.state, cfg, r, today, canBaseline);
         s.last = t;
         s.checkedAt = System.currentTimeMillis();
@@ -210,6 +211,11 @@ final class Sessions implements Listener {
         tokens.put("tuto_total", Integer.toString(ac.tutorial().steps().size()));
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
         view(p, s);
+        // après le calcul : les placeholders lus par les commandes des moments montrent déjà le nouvel état
+        List<String> arrived = s.state.pending.size() > giftsBefore
+                ? List.copyOf(s.state.pending.subList(giftsBefore, s.state.pending.size())) : List.of();
+        plugin.moments().fire(p, Moments.after(t, arrived, t.newlyCompleted() ? Streak.display(s.state, today) : 0,
+                s.state.pending.size()));
         return t;
     }
 

@@ -104,6 +104,7 @@ final class Accueil {
         s.state.welcome.add("demain");
         s.state.pending.add("accueil:demain");
         s.dirty = true;
+        plugin.moments().fire(p, Moments.CADEAU_PRET, Map.of("cadeaux", Integer.toString(s.state.pending.size())));
         if (back) {
             return;
         }
@@ -215,6 +216,7 @@ final class Accueil {
                 tomorrowUntil.put(p.getUniqueId(), System.currentTimeMillis() + t.barSeconds() * 1000L);
             }
         }
+        plugin.moments().fire(p, Moments.CADEAU_PRET, Map.of("cadeaux", Integer.toString(s.state.pending.size())));
     }
 
     /**
@@ -289,6 +291,7 @@ final class Accueil {
         m.send(p, "tutoriel-etape", "n", Integer.toString(n), "total", Integer.toString(total),
                 "texte", st.text(), "gain", gain);
         plugin.sound(p, "etape");
+        plugin.moments().fire(p, Moments.ETAPE_FAITE, Map.of("etape", st.id(), "numero", Integer.toString(n), "total", Integer.toString(total)));
         plugin.fleche().setTarget(p, null, "");
         AccueilConfig.Step next = currentStep(s.state, c);
         if (next == null) {
@@ -309,6 +312,7 @@ final class Accueil {
         plugin.runCommands(p, c.tutorial().end());
         plugin.messages().send(p, "tutoriel-fini");
         plugin.sound(p, "tutoriel-fin");
+        plugin.moments().fire(p, Moments.TUTORIEL_FINI, Map.of());
     }
 
     private void showStep(Player p, AccueilConfig c, AccueilConfig.Step st, int n, float progress) {

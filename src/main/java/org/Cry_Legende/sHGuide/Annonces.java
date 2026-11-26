@@ -14,6 +14,11 @@ import java.util.OptionalLong;
 final class Annonces {
 
     record Active(String text, String click, long startMillis) {
+
+        /** Une annonce, c'est un nom et une minute de début : les rappels du bot (même heure) restent la même annonce. */
+        String key() {
+            return text + "@" + startMillis / 60_000L;
+        }
     }
 
     private volatile Active active;
@@ -56,7 +61,12 @@ final class Annonces {
         if (left <= 0) {
             return Tokens.apply(startedTemplate, Map.of("texte", a.text()));
         }
-        long minutes = (left + 59_999) / 60_000;
-        return Tokens.apply(soonTemplate, Map.of("texte", a.text(), "minutes", Long.toString(minutes)));
+        return Tokens.apply(soonTemplate, Map.of("texte", a.text(), "minutes", Long.toString(minutesLeft(a, now))));
+    }
+
+    /** Minutes avant le début, arrondies au-dessus ; 0 quand l'event a commencé. */
+    static long minutesLeft(Active a, long now) {
+        long left = a.startMillis() - now;
+        return left <= 0 ? 0 : (left + 59_999) / 60_000;
     }
 }

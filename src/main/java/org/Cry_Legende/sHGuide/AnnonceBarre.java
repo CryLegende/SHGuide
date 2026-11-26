@@ -5,8 +5,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,6 +39,8 @@ final class AnnonceBarre {
     private final SHGuide plugin;
     private BossBar bar;
     private final Set<UUID> shown = new HashSet<>();
+    /** Annonce déjà dite à chaque joueur (moment « annonce ») : vidée quand plus aucune annonce ne se voit. */
+    private final Map<UUID, String> told = new HashMap<>();
 
     AnnonceBarre(SHGuide plugin) {
         this.plugin = plugin;
@@ -46,6 +51,7 @@ final class AnnonceBarre {
         Settings cfg = plugin.settings();
         Config b = cfg.annonceBar();
         long now = System.currentTimeMillis();
+        tell(cfg, b, now);
         Annonces.Active a = b.enabled() ? plugin.annonces().current(now, b.beforeMinutes(), cfg.annonceGraceMinutes()) : null;
         if (a == null) {
             hideAll();
@@ -68,6 +74,32 @@ final class AnnonceBarre {
             if (shown.add(p.getUniqueId())) {
                 p.showBossBar(bar);
             }
+        }
+    }
+
+    /**
+     * Moment « annonce » : une fois par annonce et par joueur, la première seconde où elle se voit pour lui (barre ou
+     * objectif du moment, selon ce qui s'affiche le plus tôt). Un joueur qui se reconnecte pendant l'annonce ne la
+     * revoit pas.
+     */
+    private void tell(Settings cfg, Config b, long now) {
+        Annonces.Active seen = plugin.annonces().current(now, Math.max(b.enabled() ? b.beforeMinutes() : 0, cfg.annonceBeforeMinutes()),
+                cfg.annonceGraceMinutes());
+        if (seen == null || !plugin.moments().active(Moments.ANNONCE)) {
+            told.clear();
+            return;
+        }
+        String key = seen.key();
+        Map<String, String> tokens = null;
+        // une copie : une commande de moment peut faire partir un joueur
+        for (Player p : new ArrayList<>(Bukkit.getOnlinePlayers())) {
+            if (key.equals(told.put(p.getUniqueId(), key))) {
+                continue;
+            }
+            if (tokens == null) {
+                tokens = Map.of("nom", seen.text(), "minutes", Long.toString(Annonces.minutesLeft(seen, now)));
+            }
+            plugin.moments().fire(p, Moments.ANNONCE, tokens);
         }
     }
 

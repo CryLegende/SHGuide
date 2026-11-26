@@ -38,6 +38,7 @@ public final class SHGuide extends JavaPlugin {
     private AnnonceBarre annonceBarre;
     private Origine origine;
     private final Annonces annonces = new Annonces();
+    private final Moments moments = new Moments(this);
     private GuideExpansion expansion;
 
     @Override
@@ -306,6 +307,10 @@ public final class SHGuide extends JavaPlugin {
         return annonces;
     }
 
+    Moments moments() {
+        return moments;
+    }
+
     GuideStore store() {
         return store;
     }
@@ -333,20 +338,25 @@ public final class SHGuide extends JavaPlugin {
     /** Commandes de la config : [console] en console, sinon lancées par le joueur ; {joueur} = son pseudo. */
     void runCommands(Player p, List<String> commands) {
         for (String raw : commands) {
-            String cmd = raw.replace("{joueur}", p.getName()).trim();
-            if (cmd.isEmpty()) {
-                continue;
+            dispatch(p, raw.replace("{joueur}", p.getName()));
+        }
+    }
+
+    /** Une commande déjà complète : [console] en console, sinon lancée par le joueur ; une ligne vide ne fait rien. */
+    void dispatch(Player p, String command) {
+        String cmd = command.trim();
+        if (cmd.isEmpty()) {
+            return;
+        }
+        try {
+            if (cmd.startsWith("[console]")) {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.substring("[console]".length()).trim());
+            } else {
+                playerCommand(p, cmd);
             }
-            try {
-                if (cmd.startsWith("[console]")) {
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd.substring("[console]".length()).trim());
-                } else {
-                    playerCommand(p, cmd);
-                }
-            } catch (RuntimeException e) {
-                // une commande en panne n'empêche pas les suivantes (les autres cadeaux)
-                getLogger().log(Level.SEVERE, "Commande « " + cmd + " » en échec pour " + p.getName(), e);
-            }
+        } catch (RuntimeException e) {
+            // une commande en panne n'empêche pas les suivantes (les autres cadeaux)
+            getLogger().log(Level.SEVERE, "Commande « " + cmd + " » en échec pour " + p.getName(), e);
         }
     }
 

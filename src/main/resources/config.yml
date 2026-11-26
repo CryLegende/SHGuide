@@ -71,6 +71,22 @@
 # Jetons des tâches : {objectif} (quantité du palier), ou {objectif|quête|quêtes} pour l'accorder ; {quantite} dans la description.
 # Commandes : lancées par le joueur, sauf celles qui commencent par [console] ({joueur} = son pseudo).
 #
+# Moments : à chaque moment du guide, la liste de commandes du même nom (section moments, plus bas) est lancée pour le
+#   joueur concerné, sur le fil principal, écrite comme les autres commandes de ce fichier. {joueur} et les jetons du
+#   moment sont remplacés d'abord, puis les placeholders PlaceholderAPI (lus pour ce joueur). Une liste vide ou absente ne
+#   fait rien. Le plugin ne sait pas ce que font ces commandes.
+#   tache-faite          Une tâche du jour vient d'être faite, pas la dernière : {tache} {faites} {total} {restantes}
+#   programme-complet    La dernière tâche du jour vient d'être faite : {serie}
+#   palier               Un palier de série vient d'être atteint : {palier} (le jour du palier)
+#   cadeau-pret          Un cadeau vient d'arriver dans les récompenses : {cadeaux} (ceux qui attendent)
+#   cadeau-pris          Le joueur vient de récupérer un cadeau, un lancement par cadeau : {sorte} (jour, palier, bienvenue, demain)
+#   etape-faite          Une étape du tutoriel vient d'être faite : {etape} (son identifiant) {numero} {total}
+#   tutoriel-fini        Le tutoriel est fini.
+#   retour               Le joueur revient après l'absence du retour guidé : {jours} (jours d'absence)
+#   annonce              Une annonce d'event devient visible pour le joueur, une fois par annonce et par joueur : {nom} {minutes}
+#                        (minutes avant le début à ce moment). Une annonce, c'est un nom et une minute de début : les rappels
+#                        « shguide annonce HH:MM ... » du même event restent la même annonce.
+#
 # Un reload valide les quatre fichiers avant de les appliquer : si l'un est invalide, rien ne change et le message
 # donne le fichier et l'erreur. Demande un redémarrage : base-de-donnees.
 #
@@ -284,6 +300,27 @@ sons:
   programme: ui.toast.challenge_complete
   recompense: entity.player.levelup
   refus: entity.villager.no
+  # un cadeau arrive dans les récompenses (cadeau de bienvenue, cadeau du lendemain)
+  cadeau: block.note_block.pling
+  # une étape du tutoriel est faite
+  etape: entity.experience_orb.pickup
+  # le tutoriel est fini
+  tutoriel-fin: ui.toast.challenge_complete
+
+# Commandes lancées à chaque moment du guide (voir « Moments » en haut du fichier). Une liste vide ne fait rien.
+# Exemple, à écrire sous le moment voulu à la place de « [] » :
+#   tache-faite:
+#     - "[console] say {joueur} a fini une tâche, {faites} sur {total} : {tache}"
+moments:
+  tache-faite: []
+  programme-complet: []
+  palier: []
+  cadeau-pret: []
+  cadeau-pris: []
+  etape-faite: []
+  tutoriel-fini: []
+  retour: []
+  annonce: []
 
 # ------------------------------------------------------------------------ #
 # Exemple de section accueil, désactivée par défaut : retirez « # » (et l'espace qui suit) au début de

@@ -37,6 +37,7 @@ Chaque écran s'ouvre aussi directement (`/guide taches`, `/guide recompenses`�
 | Liens | Un bouton lance une commande, une commande ouvre un écran, et le Retour d'un menu ouvert par Jake ramène à l'écran d'où vient le joueur (`/guide retour <commande>`). Les messages du chat se cliquent (`clics` de `messages.yml`). |
 | Retour guidé | Après `retour.jours` jours d'absence, un dialogue (ou le chat pour les anciennes versions) donne le cadeau qui attend, les nouveautés sorties depuis la dernière venue et l'objectif du moment (`retour.lignes` de `messages.yml`, `%shguide_retour%`). |
 | Barre d'event | Un event annoncé par `/shguide annonce` (par exemple dans les commandes de rappel du bot des évènements : `shguide annonce {heure} {nom} \| events`) affiche à tout le serveur une barre violette avec son compte à rebours, `annonce-barre.minutes-avant` minutes avant son début. |
+| Moments | À chaque moment du guide (tâche faite, cadeau pris, étape du tutoriel…), une liste de commandes de `moments` est lancée pour le joueur concerné, voir [Moments](#moments). |
 | Accueil des nouveaux | Pour un joueur dont la toute première connexion a lieu avec le guide (section `accueil`), voir le tableau ci-dessous. |
 
 L'accueil ne concerne que les nouveaux joueurs, les anciens ne voient rien de tout cela :
@@ -100,13 +101,37 @@ Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée 
 | `%shguide_tutoriel_etape%` / `%shguide_tutoriel_total%` | Numéro de l'étape en cours / nombre d'étapes |
 | `%shguide_tutoriel_texte%` | Texte de l'étape en cours, vide si le tutoriel est fini |
 
+## Moments
+
+La section `moments` de `config.yml` donne, pour chaque moment du guide, une liste de commandes lancées pour le joueur concerné, sur le fil principal. Elles s'écrivent comme les autres listes de commandes du fichier : `[console] …`, ou une commande que le joueur lance lui-même. `{joueur}` et les jetons du moment sont remplacés d'abord, puis les placeholders PlaceholderAPI, lus pour ce joueur. Une liste vide ou absente ne fait rien, et le plugin ne sait pas ce que font ces commandes : un autre plugin peut s'y brancher sans que le guide le connaisse.
+
+```yaml
+moments:
+  tache-faite:
+    - "[console] say {joueur} a fini une tâche, {faites} sur {total} : {tache}"
+```
+
+| Moment | Quand | Jetons |
+|---|---|---|
+| `tache-faite` | Une tâche du jour vient d'être faite, pas la dernière | `{tache}` son texte, `{faites}` `{total}` `{restantes}` |
+| `programme-complet` | La dernière tâche du jour vient d'être faite | `{serie}` |
+| `palier` | Un palier de série vient d'être atteint | `{palier}` le jour du palier |
+| `cadeau-pret` | Un cadeau vient d'arriver dans les récompenses (jour complet, palier, cadeau de bienvenue, cadeau du lendemain) | `{cadeaux}` ceux qui attendent |
+| `cadeau-pris` | Le joueur vient de récupérer un cadeau, un lancement par cadeau (« tout récupérer » en lance plusieurs) | `{sorte}` : `jour`, `palier`, `bienvenue` ou `demain` |
+| `etape-faite` | Une étape du tutoriel vient d'être faite | `{etape}` son identifiant, `{numero}` `{total}` |
+| `tutoriel-fini` | Le tutoriel est fini | |
+| `retour` | Le joueur revient après l'absence qui déclenche le retour guidé, en même temps que son dialogue | `{jours}` |
+| `annonce` | Une annonce d'event devient visible pour le joueur (barre ou objectif du moment), une fois par annonce et par joueur, même s'il se reconnecte | `{nom}` l'event, `{minutes}` avant son début |
+
+Un jour complet lance `programme-complet`, puis `palier` si la série atteint un palier, puis `cadeau-pret`. Une annonce est un nom et une minute de début : les rappels du bot (`shguide annonce HH:MM …`) d'un même event restent la même annonce. Un moment inconnu ou une valeur qui n'est pas une liste est refusé par `/shguide reload`, qui nomme la clé.
+
 ## Configuration
 
 Fichiers par défaut, avec des valeurs d'exemple. Cliquez sur un fichier pour l'ouvrir :
 
 <pre>
 plugins/SHGuide/
-├── <a href="src/main/resources/config.yml">config.yml</a>       base de données, tâches, récompenses, série, objectifs, retour, sons, exemple d'accueil (commenté)
+├── <a href="src/main/resources/config.yml">config.yml</a>       base de données, tâches, récompenses, série, objectifs, retour, sons, moments, exemple d'accueil (commenté)
 ├── <a href="src/main/resources/menus.yml">menus.yml</a>        les écrans de Jake : cases, icônes, textes, conditions, clics
 ├── <a href="src/main/resources/nouveautes.yml">nouveautes.yml</a>   une entrée par nouveauté
 └── <a href="src/main/resources/messages.yml">messages.yml</a>     messages du chat, objectif, scoreboard, alerte, retour

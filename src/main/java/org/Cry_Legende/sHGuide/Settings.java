@@ -20,7 +20,8 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
                 int returnDays, long returnDelayTicks, String dialogCondition, List<String> dialogCommands,
                 int newsMax, int newsRecentDays, DateTimeFormatter newsDate, int annonceBeforeMinutes, int annonceGraceMinutes,
                 Map<String, String> sounds, DbConfig db,
-                AccueilConfig accueil, AnnonceBarre.Config annonceBar, List<Fleche.Source> arrowSources) {
+                AccueilConfig accueil, AnnonceBarre.Config annonceBar, List<Fleche.Source> arrowSources,
+                Map<String, List<String>> moments) {
 
     /**
      * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
@@ -199,7 +200,39 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
                         db.getString("utilisateur", ""), db.getString("mot-de-passe", "")),
                 AccueilConfig.read(c.getConfigurationSection("accueil")),
                 AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")),
-                arrowSources(c.getConfigurationSection("fleches")));
+                arrowSources(c.getConfigurationSection("fleches")), moments(c.get("moments")));
+    }
+
+    /** Section « moments » : une liste de commandes par moment connu ; une clé inconnue ou une valeur qui n'est pas une liste est refusée. */
+    private static Map<String, List<String>> moments(Object raw) {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        if (raw == null) {
+            return out;
+        }
+        if (!(raw instanceof ConfigurationSection sec)) {
+            throw new IllegalArgumentException("moments : une section est attendue (un moment par clé : " + String.join(", ", Moments.NAMES) + ")");
+        }
+        for (String name : sec.getKeys(false)) {
+            if (!Moments.NAMES.contains(name)) {
+                throw new IllegalArgumentException("moments." + name + " : moment inconnu (" + String.join(", ", Moments.NAMES) + ")");
+            }
+            Object value = sec.get(name);
+            if (value == null) {
+                continue;
+            }
+            if (!(value instanceof List<?> list)) {
+                throw new IllegalArgumentException("moments." + name + " : une liste de commandes est attendue");
+            }
+            List<String> commands = new ArrayList<>();
+            for (int i = 0; i < list.size(); i++) {
+                if (!(list.get(i) instanceof String command)) {
+                    throw new IllegalArgumentException("moments." + name + "[" + i + "] : une commande écrite en texte est attendue");
+                }
+                commands.add(command);
+            }
+            out.put(name, List.copyOf(commands));
+        }
+        return Map.copyOf(out);
     }
 
     private static DateTimeFormatter newsDate(ConfigurationSection c) {
