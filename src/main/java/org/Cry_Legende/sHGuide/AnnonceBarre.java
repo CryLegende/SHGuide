@@ -8,10 +8,12 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Barre en haut de l'écran de tout le serveur pour l'event annoncé (/shguide annonce, envoyé par les rappels du bot
@@ -78,9 +80,10 @@ final class AnnonceBarre {
     }
 
     /**
-     * Moment « annonce » : une fois par annonce et par joueur, la première seconde où elle se voit pour lui (barre ou
+     * Moment « annonce » : une fois par annonce et par joueur, la première fois où elle se voit pour lui (barre ou
      * objectif du moment, selon ce qui s'affiche le plus tôt). Un joueur qui se reconnecte pendant l'annonce ne la
-     * revoit pas.
+     * revoit pas ; un redémarrage ou un rechargement du plugin oublie ce qui a été dit. Elle part pour « moments-par-seconde »
+     * joueurs au plus à chaque seconde : les autres attendent leur tour, sans qu'un rappel lance toutes les commandes d'un coup.
      */
     private void tell(Settings cfg, Config b, long now) {
         Annonces.Active seen = plugin.annonces().current(now, Math.max(b.enabled() ? b.beforeMinutes() : 0, cfg.annonceBeforeMinutes()),
@@ -89,18 +92,32 @@ final class AnnonceBarre {
             told.clear();
             return;
         }
-        String key = seen.key();
-        Map<String, String> tokens = null;
-        // une copie : une commande de moment peut faire partir un joueur
-        for (Player p : new ArrayList<>(Bukkit.getOnlinePlayers())) {
-            if (key.equals(told.put(p.getUniqueId(), key))) {
-                continue;
-            }
-            if (tokens == null) {
-                tokens = Map.of("nom", seen.text(), "minutes", Long.toString(Annonces.minutesLeft(seen, now)));
-            }
+        List<Player> next = toTell(Bukkit.getOnlinePlayers(), Player::getUniqueId, told, seen.key(), cfg.momentsPerSecond());
+        if (next.isEmpty()) {
+            return;
+        }
+        Map<String, String> tokens = Map.of("nom", seen.text(), "minutes", Long.toString(Annonces.minutesLeft(seen, now)));
+        for (Player p : next) {
             plugin.moments().fire(p, Moments.ANNONCE, tokens);
         }
+    }
+
+    /**
+     * Au plus « limit » joueurs à qui cette annonce n'a pas encore été dite, dans l'ordre : leur clé est écrite dans « told »
+     * seulement maintenant, ceux qui n'ont pas eu leur tour restent à dire.
+     */
+    static <T> List<T> toTell(Iterable<? extends T> online, Function<? super T, UUID> id, Map<UUID, String> told, String key, int limit) {
+        List<T> out = new ArrayList<>();
+        for (T player : online) {
+            if (out.size() >= limit) {
+                break;
+            }
+            if (!key.equals(told.get(id.apply(player)))) {
+                told.put(id.apply(player), key);
+                out.add(player);
+            }
+        }
+        return out;
     }
 
     void forget(Player p) {

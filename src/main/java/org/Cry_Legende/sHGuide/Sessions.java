@@ -212,10 +212,7 @@ final class Sessions implements Listener {
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
         view(p, s);
         // après le calcul : les placeholders lus par les commandes des moments montrent déjà le nouvel état
-        List<String> arrived = s.state.pending.size() > giftsBefore
-                ? List.copyOf(s.state.pending.subList(giftsBefore, s.state.pending.size())) : List.of();
-        plugin.moments().fire(p, Moments.after(t, arrived, t.newlyCompleted() ? Streak.display(s.state, today) : 0,
-                s.state.pending.size()));
+        plugin.moments().fire(p, Moments.after(s.state, giftsBefore, t, today));
         return t;
     }
 

@@ -161,10 +161,13 @@ public final class SHGuide extends JavaPlugin {
 
     /**
      * « startup » : au démarrage, un fichier édité par le staff et devenu illisible n'arrête pas le guide (menus.yml et
-     * messages.yml du jar à la place, nouveautés illisibles laissées de côté), la console le dit. Un reload, lui, refuse tout.
+     * messages.yml du jar à la place, nouveautés illisibles laissées de côté, section moments invalide ignorée), la console
+     * le dit. Un reload, lui, refuse tout.
      */
     private Files readFiles(boolean startup) {
-        Settings s = read("config.yml", Settings::read);
+        List<String> momentErrors = new ArrayList<>();
+        Settings s = read("config.yml", file -> Settings.read(file, startup ? momentErrors : null));
+        report("config.yml", momentErrors.stream().map(e -> e + " (aucun moment ne part jusqu'au prochain /shguide reload)").toList(), startup);
         MenusConfig menus = readOrDefault("menus.yml", MenusConfig::read, startup);
         List<String> newsErrors = new ArrayList<>();
         Nouveautes news;

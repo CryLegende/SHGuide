@@ -3,10 +3,12 @@ package org.Cry_Legende.sHGuide;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.entity.Player;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.logging.Level;
 
@@ -30,6 +32,9 @@ final class Moments {
     /** Les moments que le plugin connaît, dans l'ordre de config.yml. */
     static final List<String> NAMES = List.of(TACHE_FAITE, PROGRAMME_COMPLET, PALIER, CADEAU_PRET, CADEAU_PRIS,
             ETAPE_FAITE, TUTORIEL_FINI, RETOUR, ANNONCE);
+
+    /** Jetons faits de texte libre : privés du caractère % avant PlaceholderAPI, pour qu'un texte ne devienne jamais un placeholder. */
+    static final Set<String> TEXT_TOKENS = Set.of("tache", "nom", "etape");
 
     /** Un moment qui vient d'arriver, avec ses jetons. */
     record Event(String name, Map<String, String> tokens) {
@@ -79,18 +84,37 @@ final class Moments {
     }
 
     /**
-     * Les commandes d'un moment, prêtes à partir : les {jetons} sont remplacés d'abord, les placeholders
-     * (PlaceholderAPI, lus pour le joueur) ensuite, et les lignes vides disparaissent.
+     * Les commandes d'un moment, prêtes à partir : les {jetons} sont remplacés d'abord (ceux de texte libre sans le
+     * caractère %), les placeholders (PlaceholderAPI, lus pour le joueur) ensuite, et les lignes vides disparaissent.
      */
     static List<String> expand(List<String> commands, Map<String, String> tokens, UnaryOperator<String> placeholders) {
+        Map<String, String> safe = tokens;
+        for (String key : TEXT_TOKENS) {
+            String value = tokens.get(key);
+            if (value != null && value.indexOf('%') >= 0) {
+                if (safe == tokens) {
+                    safe = new HashMap<>(tokens);
+                }
+                safe.put(key, value.replace("%", ""));
+            }
+        }
         List<String> out = new ArrayList<>(commands.size());
         for (String raw : commands) {
-            String command = placeholders.apply(Tokens.apply(raw, tokens)).trim();
+            String command = placeholders.apply(Tokens.apply(raw, safe)).trim();
             if (!command.isEmpty()) {
                 out.add(command);
             }
         }
         return out;
+    }
+
+    /**
+     * Ce qui vient d'arriver à la fin d'une vérification du programme du joueur : « giftsBefore » est le nombre de
+     * cadeaux qui attendaient avant elle, ceux qui sont venus après sont les cadeaux arrivés.
+     */
+    static List<Event> after(PlayerState s, int giftsBefore, Programme.Tick t, LocalDate today) {
+        List<String> arrived = s.pending.size() > giftsBefore ? List.copyOf(s.pending.subList(giftsBefore, s.pending.size())) : List.of();
+        return after(t, arrived, t.newlyCompleted() ? Streak.display(s, today) : 0, s.pending.size());
     }
 
     /**

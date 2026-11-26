@@ -5,10 +5,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -38,12 +40,11 @@ class MomentsTest {
         values.put("%statistic_jump%", "100");
     }
 
-    /** Ce que Sessions.refresh envoie aux moments : la vérification, les cadeaux qu'elle a ajoutés et la série. */
+    /** Une vérification du programme puis ce que Sessions.refresh en tire pour les moments (la même méthode). */
     private List<Moments.Event> check(PlayerState s) {
         int before = s.pending.size();
         Programme.Tick t = Programme.update(s, cfg, r, DAY);
-        List<String> arrived = List.copyOf(s.pending.subList(before, s.pending.size()));
-        return Moments.after(t, arrived, t.newlyCompleted() ? Streak.display(s, DAY) : 0, s.pending.size());
+        return Moments.after(s, before, t, DAY);
     }
 
     private static List<String> names(List<Moments.Event> events) {
@@ -74,6 +75,23 @@ class MomentsTest {
     }
 
     @Test
+    void freeTextTokensLoseTheirPercentSignButNumbersStayUsableInAPlaceholder() {
+        // le placeholder qu'un texte laisserait derrière lui ne doit jamais être lu
+        Map<String, String> tokens = Map.of("joueur", "Bot", "tache", "Vendre 50%", "nom", "%player_name% Run", "etape", "100% %x%",
+                "palier", "7");
+        List<String> out = Moments.expand(List.of("say {tache} / {nom} / {etape} / %x_{palier}%"), tokens,
+                text -> text.replace("%player_name%", "LU").replace("%x_7%", "SEPT"));
+        assertEquals(List.of("say Vendre 50 / player_name Run / 100 x / SEPT"), out);
+    }
+
+    @Test
+    void theTokensGivenAreNotChanged() {
+        Map<String, String> tokens = Map.of("joueur", "Bot", "tache", "50%");
+        Moments.expand(List.of("say {tache}"), tokens, text -> text);
+        assertEquals("50%", tokens.get("tache"));
+    }
+
+    @Test
     void anEmptyListGivesNothing() {
         assertTrue(Moments.expand(List.of(), Map.of("joueur", "Bot"), text -> text).isEmpty());
     }
@@ -86,6 +104,60 @@ class MomentsTest {
         assertEquals(Set.copyOf(Moments.NAMES), moments.keySet());
         assertEquals(9, Moments.NAMES.size());
         assertTrue(moments.values().stream().allMatch(List::isEmpty));
+        assertEquals(10, cfg.momentsPerSecond());
+    }
+
+    @Test
+    void momentsPerSecondIsReadAndMustBeAWholeNumberOfOneAtLeast() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("moments-par-seconde", 25);
+        assertEquals(25, Settings.read(c).momentsPerSecond());
+        c.set("moments-par-seconde", null);
+        assertEquals(10, Settings.read(c).momentsPerSecond());
+        for (Object bad : List.of(0, -3, "dix", 2.5)) {
+            YamlConfiguration d = SettingsTest.example();
+            d.set("moments-par-seconde", bad);
+            assertTrue(assertThrows(IllegalArgumentException.class, () -> Settings.read(d)).getMessage().contains("moments-par-seconde"), String.valueOf(bad));
+        }
+    }
+
+    @Test
+    void atStartupABadMomentsSectionIsIgnoredAndNamedWhileTheRestIsRead() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("moments.tache-finie", List.of("say x"));
+        c.set("moments.retour", List.of("say bonjour"));
+        c.set("moments-par-seconde", 3);
+        List<String> errors = new ArrayList<>();
+        Settings s = Settings.read(c, errors);
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).contains("moments.tache-finie"), errors.get(0));
+        assertTrue(s.moments().isEmpty(), "aucun moment ne part");
+        assertEquals(10, s.momentsPerSecond());
+        assertEquals(2, s.tasks().size());
+        assertEquals(Set.of(7, 14, 21, 30), s.stepDays());
+        // un reload (sans liste d'erreurs) refuse le même fichier
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> Settings.read(c)).getMessage().contains("moments.tache-finie"));
+    }
+
+    @Test
+    void atStartupABadSpeedIsIgnoredToo() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("moments.retour", List.of("say bonjour"));
+        c.set("moments-par-seconde", "vite");
+        List<String> errors = new ArrayList<>();
+        Settings s = Settings.read(c, errors);
+        assertEquals(1, errors.size());
+        assertTrue(errors.get(0).contains("moments-par-seconde"), errors.get(0));
+        assertTrue(s.moments().isEmpty());
+    }
+
+    @Test
+    void aValidSectionAtStartupRaisesNoError() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("moments.retour", List.of("say bonjour"));
+        List<String> errors = new ArrayList<>();
+        assertEquals(List.of("say bonjour"), Settings.read(c, errors).moments().get("retour"));
+        assertTrue(errors.isEmpty());
     }
 
     @Test
@@ -240,6 +312,32 @@ class MomentsTest {
         assertEquals(a.key(), new Annonces.Active("TNT Run", "autre clic", 600_000L + 30_000L).key());
         assertNotEquals(a.key(), new Annonces.Active("TNT Run", "minijeu join", 660_000L).key());
         assertNotEquals(a.key(), new Annonces.Active("Block Party", "minijeu join", 600_000L).key());
+    }
+
+    @Test
+    void anAnnouncementIsToldToAFewPlayersPerSecondAndEveryoneGetsTheirTurn() {
+        List<UUID> online = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            online.add(UUID.randomUUID());
+        }
+        Map<UUID, String> told = new HashMap<>();
+        List<UUID> first = AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10);
+        assertEquals(online.subList(0, 10), first);
+        assertEquals(10, told.size(), "seuls ceux qui sont partis sont notés");
+        assertEquals(online.subList(10, 20), AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10));
+        assertEquals(online.subList(20, 25), AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10));
+        assertTrue(AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10).isEmpty(), "chacun une seule fois");
+    }
+
+    @Test
+    void aPlayerWhoArrivesLateGetsTheAnnouncementAndANewAnnouncementIsToldToAllAgain() {
+        List<UUID> online = new ArrayList<>(List.of(UUID.randomUUID(), UUID.randomUUID()));
+        Map<UUID, String> told = new HashMap<>();
+        assertEquals(2, AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10).size());
+        UUID late = UUID.randomUUID();
+        online.add(late);
+        assertEquals(List.of(late), AnnonceBarre.toTell(online, id -> id, told, "TNT@10", 10));
+        assertEquals(3, AnnonceBarre.toTell(online, id -> id, told, "Block Party@12", 10).size());
     }
 
     @Test

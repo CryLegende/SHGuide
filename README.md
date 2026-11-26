@@ -103,7 +103,7 @@ Requises : `PlaceholderAPI`, une base MariaDB (table `shguide_joueurs`, créée 
 
 ## Moments
 
-La section `moments` de `config.yml` donne, pour chaque moment du guide, une liste de commandes lancées pour le joueur concerné, sur le fil principal. Elles s'écrivent comme les autres listes de commandes du fichier : `[console] …`, ou une commande que le joueur lance lui-même. `{joueur}` et les jetons du moment sont remplacés d'abord, puis les placeholders PlaceholderAPI, lus pour ce joueur. Une liste vide ou absente ne fait rien, et le plugin ne sait pas ce que font ces commandes : un autre plugin peut s'y brancher sans que le guide le connaisse.
+La section `moments` de `config.yml` donne, pour chaque moment du guide, une liste de commandes lancées pour le joueur concerné, sur le fil principal. Elles s'écrivent comme les autres listes de commandes du fichier : `[console] …`, ou une commande que le joueur lance lui-même. `{joueur}` et les jetons du moment sont remplacés d'abord, puis les placeholders PlaceholderAPI, lus pour ce joueur. Les jetons de texte libre (`{tache}`, `{etape}`, `{nom}`) sont donnés sans le caractère `%`, pour qu'un texte ne devienne jamais un placeholder ; les jetons numériques peuvent servir dans un placeholder (`%x_{palier}%`). Une liste vide ou absente ne fait rien, et le plugin ne sait pas ce que font ces commandes : un autre plugin peut s'y brancher sans que le guide le connaisse.
 
 ```yaml
 moments:
@@ -121,9 +121,9 @@ moments:
 | `etape-faite` | Une étape du tutoriel vient d'être faite | `{etape}` son identifiant, `{numero}` `{total}` |
 | `tutoriel-fini` | Le tutoriel est fini | |
 | `retour` | Le joueur revient après l'absence qui déclenche le retour guidé, en même temps que son dialogue | `{jours}` |
-| `annonce` | Une annonce d'event devient visible pour le joueur (barre ou objectif du moment), une fois par annonce et par joueur, même s'il se reconnecte | `{nom}` l'event, `{minutes}` avant son début |
+| `annonce` | Une annonce d'event devient visible pour le joueur (barre ou objectif du moment), une fois par annonce et par joueur, même s'il se reconnecte. Elle part pour `moments-par-seconde` joueurs au plus à chaque seconde | `{nom}` l'event, `{minutes}` avant son début |
 
-Un jour complet lance `programme-complet`, puis `palier` si la série atteint un palier, puis `cadeau-pret`. Une annonce est un nom et une minute de début : les rappels du bot (`shguide annonce HH:MM …`) d'un même event restent la même annonce. Un moment inconnu ou une valeur qui n'est pas une liste est refusé par `/shguide reload`, qui nomme la clé.
+Un jour complet lance `programme-complet`, puis `palier` si la série atteint un palier, puis `cadeau-pret`. Une annonce est un nom et une minute de début : les rappels du bot (`shguide annonce HH:MM …`) d'un même event restent la même annonce. Un redémarrage du serveur ou un rechargement du plugin oublie ce qui a été dit : l'annonce repart pour tous les joueurs au rappel suivant du bot. Un moment inconnu ou une valeur qui n'est pas une liste est refusé par `/shguide reload`, qui nomme la clé ; au démarrage, la section `moments` invalide est ignorée (la console nomme la clé, aucun moment ne part) et le guide démarre quand même.
 
 ## Configuration
 

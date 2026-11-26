@@ -21,7 +21,7 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
                 int newsMax, int newsRecentDays, DateTimeFormatter newsDate, int annonceBeforeMinutes, int annonceGraceMinutes,
                 Map<String, String> sounds, DbConfig db,
                 AccueilConfig accueil, AnnonceBarre.Config annonceBar, List<Fleche.Source> arrowSources,
-                Map<String, List<String>> moments) {
+                Map<String, List<String>> moments, int momentsPerSecond) {
 
     /**
      * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
@@ -114,6 +114,14 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
     }
 
     static Settings read(ConfigurationSection c) {
+        return read(c, null);
+    }
+
+    /**
+     * @param momentErrors non null : une section moments invalide est ignorée (aucun moment ne part) et son erreur est
+     *                     ajoutée ici, au lieu de refuser le fichier ; null : elle refuse le fichier
+     */
+    static Settings read(ConfigurationSection c, List<String> momentErrors) {
         ConfigurationSection prog = need(c, "programme");
         List<TaskDef> tasks = tasks(prog, "programme.taches", "taches");
         List<TaskDef> rotating = tasks(prog, "programme.tournantes", "tournantes");
@@ -183,6 +191,20 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
             slow.put(placeholder.trim(), slowSeconds);
         }
 
+        Map<String, List<String>> moments = Map.of();
+        int momentsPerSecond = 10;
+        try {
+            moments = moments(c.get("moments"));
+            momentsPerSecond = momentsPerSecond(c.get("moments-par-seconde"));
+        } catch (IllegalArgumentException e) {
+            if (momentErrors == null) {
+                throw e;
+            }
+            moments = Map.of();
+            momentsPerSecond = 10;
+            momentErrors.add(e.getMessage());
+        }
+
         ConfigurationSection db = need(c, "base-de-donnees");
         return new Settings(ZoneId.of(c.getString("fuseau", "Europe/Paris")),
                 Math.max(1, c.getInt("verification-secondes", 10)), Math.max(1, c.getInt("verification-par-tick", 1)), Map.copyOf(slow),
@@ -200,7 +222,18 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
                         db.getString("utilisateur", ""), db.getString("mot-de-passe", "")),
                 AccueilConfig.read(c.getConfigurationSection("accueil")),
                 AnnonceBarre.Config.read(c.getConfigurationSection("annonce-barre")),
-                arrowSources(c.getConfigurationSection("fleches")), moments(c.get("moments")));
+                arrowSources(c.getConfigurationSection("fleches")), moments, momentsPerSecond);
+    }
+
+    /** « moments-par-seconde » : joueurs pour qui le moment « annonce » part au plus à chaque seconde (10 sans la clé). */
+    private static int momentsPerSecond(Object raw) {
+        if (raw == null) {
+            return 10;
+        }
+        if (!(raw instanceof Integer n) || n < 1) {
+            throw new IllegalArgumentException("moments-par-seconde : un nombre entier d'au moins 1 est attendu");
+        }
+        return n;
     }
 
     /** Section « moments » : une liste de commandes par moment connu ; une clé inconnue ou une valeur qui n'est pas une liste est refusée. */

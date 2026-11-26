@@ -73,8 +73,11 @@
 #
 # Moments : à chaque moment du guide, la liste de commandes du même nom (section moments, plus bas) est lancée pour le
 #   joueur concerné, sur le fil principal, écrite comme les autres commandes de ce fichier. {joueur} et les jetons du
-#   moment sont remplacés d'abord, puis les placeholders PlaceholderAPI (lus pour ce joueur). Une liste vide ou absente ne
-#   fait rien. Le plugin ne sait pas ce que font ces commandes.
+#   moment sont remplacés d'abord, puis les placeholders PlaceholderAPI (lus pour ce joueur). Les jetons de texte libre
+#   ({tache} {etape} {nom}) sont donnés sans le caractère %, pour qu'un texte ne devienne jamais un placeholder ; les jetons
+#   numériques peuvent servir dans un placeholder. Une liste vide ou absente ne fait rien. Le plugin ne sait pas ce que font
+#   ces commandes. Au démarrage, une section moments invalide n'arrête pas le plugin : la console nomme la clé et aucun moment
+#   ne part ; /shguide reload refuse le fichier.
 #   tache-faite          Une tâche du jour vient d'être faite, pas la dernière : {tache} {faites} {total} {restantes}
 #   programme-complet    La dernière tâche du jour vient d'être faite : {serie}
 #   palier               Un palier de série vient d'être atteint : {palier} (le jour du palier)
@@ -85,7 +88,9 @@
 #   retour               Le joueur revient après l'absence du retour guidé : {jours} (jours d'absence)
 #   annonce              Une annonce d'event devient visible pour le joueur, une fois par annonce et par joueur : {nom} {minutes}
 #                        (minutes avant le début à ce moment). Une annonce, c'est un nom et une minute de début : les rappels
-#                        « shguide annonce HH:MM ... » du même event restent la même annonce.
+#                        « shguide annonce HH:MM ... » du même event restent la même annonce. Elle part pour au plus
+#                        moments-par-seconde joueurs par seconde (les autres attendent leur tour), et un redémarrage ou un
+#                        rechargement du plugin oublie ce qui a été dit : elle repart au rappel suivant du bot.
 #
 # Un reload valide les quatre fichiers avant de les appliquer : si l'un est invalide, rien ne change et le message
 # donne le fichier et l'erreur. Demande un redémarrage : base-de-donnees.
@@ -306,6 +311,10 @@ sons:
   etape: entity.experience_orb.pickup
   # le tutoriel est fini
   tutoriel-fin: ui.toast.challenge_complete
+
+# Joueurs pour qui le moment « annonce » part au plus à chaque seconde : une annonce vue par tout le serveur ne lance pas
+# toutes ses commandes d'un coup.
+moments-par-seconde: 10
 
 # Commandes lancées à chaque moment du guide (voir « Moments » en haut du fichier). Une liste vide ne fait rien.
 # Exemple, à écrire sous le moment voulu à la place de « [] » :
