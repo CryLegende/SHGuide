@@ -15,7 +15,7 @@ import java.util.logging.Level;
 /**
  * Moments du guide (section « moments » de config.yml) : à chacun, la liste de commandes du moment est lancée pour le
  * joueur concerné, sur le fil principal. Le plugin ne sait pas ce que font ces commandes. Une liste vide ou absente ne
- * fait rien.
+ * fait rien. La récompense propre à une tâche (« recompense » de la tâche) part de la même façon, quand la tâche est faite.
  */
 final class Moments {
 
@@ -58,7 +58,7 @@ final class Moments {
         }
         Map<String, String> all = new HashMap<>(tokens);
         all.put("joueur", p.getName());
-        plugin.onMain(() -> run(p, moment, commands, all));
+        plugin.onMain(() -> run(p, "Moment « " + moment + " »", commands, all));
     }
 
     void fire(Player p, List<Event> events) {
@@ -67,7 +67,19 @@ final class Moments {
         }
     }
 
-    private void run(Player p, String moment, List<String> commands, Map<String, String> tokens) {
+    /**
+     * La récompense propre à chacune de ces tâches (celles que « rewarded » a retenues) : ses commandes partent pour le
+     * joueur, sur le fil principal, {joueur} et les placeholders lus pour lui.
+     */
+    void reward(Player p, List<Programme.TaskView> tasks) {
+        for (Programme.TaskView v : tasks) {
+            List<String> commands = v.def().reward();
+            Map<String, String> tokens = Map.of("joueur", p.getName());
+            plugin.onMain(() -> run(p, "Récompense de la tâche « " + v.def().id() + " »", commands, tokens));
+        }
+    }
+
+    private void run(Player p, String what, List<String> commands, Map<String, String> tokens) {
         if (!p.isOnline()) {
             return;
         }
@@ -75,7 +87,7 @@ final class Moments {
         try {
             ready = expand(commands, tokens, text -> PlaceholderAPI.setPlaceholders(p, text));
         } catch (RuntimeException e) {
-            plugin.getLogger().log(Level.SEVERE, "Moment « " + moment + " » : commandes illisibles pour " + p.getName(), e);
+            plugin.getLogger().log(Level.SEVERE, what + " : commandes illisibles pour " + p.getName(), e);
             return;
         }
         for (String command : ready) {
@@ -106,6 +118,16 @@ final class Moments {
             }
         }
         return out;
+    }
+
+    /**
+     * Les tâches que cette vérification vient de faire et qui ont une récompense à elles, dans l'ordre du programme, la
+     * dernière tâche du jour comprise (contrairement au moment « tache-faite »). Une tâche n'est « venue d'être faite »
+     * qu'une fois par jour : elle entre dans {@code Tick.newlyDone()} au moment où elle rejoint {@code PlayerState.done},
+     * qui ne se vide qu'à minuit.
+     */
+    static List<Programme.TaskView> rewarded(Programme.Tick t) {
+        return t.newlyDone().stream().filter(v -> !v.def().reward().isEmpty()).toList();
     }
 
     /**

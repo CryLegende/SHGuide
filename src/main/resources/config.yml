@@ -142,6 +142,9 @@ programme:
   #               départs sont pris (facultatif)
   #   sinon       « tournante » : si une condition est fausse, la tâche est remplacée pour la journée par la
   #               tâche tournante qui suit celle du jour (ex. une tâche de quête pour un joueur qui a tout fini)
+  #   recompense  commandes lancées une fois par jour, au moment où la tâche est faite, même si c'est la dernière
+  #               du jour (facultatif, tâches tournantes comprises) ; écrites comme programme.recompense, avec
+  #               {joueur} et les placeholders du joueur
   taches:
     niveau:
       texte: "Gagner un niveau d'XP"
@@ -151,6 +154,8 @@ programme:
         - "%player_level%"
       objectif:
         - 1
+      # recompense:
+      #   - "[console] give {joueur} experience_bottle 3"
     creatif:
       texte: "Passer en mode créatif"
       icone: GRASS_BLOCK

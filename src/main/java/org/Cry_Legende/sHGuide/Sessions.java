@@ -211,7 +211,13 @@ final class Sessions implements Listener {
         tokens.put("tuto_total", Integer.toString(ac.tutorial().steps().size()));
         s.objective = Objectives.pick(cfg.objectives(), tokens, r);
         view(p, s);
-        // après le calcul : les placeholders lus par les commandes des moments montrent déjà le nouvel état
+        // après le calcul : les placeholders lus par les commandes (récompenses de tâche, moments) montrent déjà le nouvel état
+        List<Programme.TaskView> rewarded = Moments.rewarded(t);
+        if (!rewarded.isEmpty()) {
+            // la tâche faite est enregistrée avant que sa récompense parte : un arrêt brutal ne la relance pas
+            save(p.getUniqueId(), s);
+            plugin.moments().reward(p, rewarded);
+        }
         plugin.moments().fire(p, Moments.after(s.state, giftsBefore, t, today));
         return t;
     }

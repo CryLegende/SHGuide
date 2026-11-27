@@ -25,11 +25,12 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
 
     /**
      * Tâche du programme : « compteurs » (écart depuis le début du jour), « compte » (valeurs égales à egal, écart
-     * depuis le début du jour) ou « valeur » (nombre lu tel quel, sans départ).
+     * depuis le début du jour) ou « valeur » (nombre lu tel quel, sans départ). « reward » : commandes lancées une fois,
+     * quand la tâche est faite (vide si elle n'a pas de récompense à elle).
      */
     record TaskDef(String id, String text, String icon, String click, List<String> counters,
                    List<String> countValues, String countEquals, String value, List<Integer> goals,
-                   List<String> description, List<String> conditions, boolean fallbackRotating) {
+                   List<String> description, List<String> conditions, boolean fallbackRotating, List<String> reward) {
 
         boolean isCount() {
             return !countValues.isEmpty();
@@ -253,19 +254,24 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
             if (value == null) {
                 continue;
             }
-            if (!(value instanceof List<?> list)) {
-                throw new IllegalArgumentException("moments." + name + " : une liste de commandes est attendue");
-            }
-            List<String> commands = new ArrayList<>();
-            for (int i = 0; i < list.size(); i++) {
-                if (!(list.get(i) instanceof String command)) {
-                    throw new IllegalArgumentException("moments." + name + "[" + i + "] : une commande écrite en texte est attendue");
-                }
-                commands.add(command);
-            }
-            out.put(name, List.copyOf(commands));
+            out.put(name, commands(value, "moments." + name));
         }
         return Map.copyOf(out);
+    }
+
+    /** Une liste de commandes écrites en texte (moments, récompense d'une tâche) ; « path » nomme la clé dans l'erreur. */
+    private static List<String> commands(Object value, String path) {
+        if (!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException(path + " : une liste de commandes est attendue");
+        }
+        List<String> commands = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            if (!(list.get(i) instanceof String command)) {
+                throw new IllegalArgumentException(path + "[" + i + "] : une commande écrite en texte est attendue");
+            }
+            commands.add(command);
+        }
+        return List.copyOf(commands);
     }
 
     private static DateTimeFormatter newsDate(ConfigurationSection c) {
@@ -355,6 +361,8 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
                 throw new IllegalArgumentException(path + "." + id + ".sinon : seule la valeur « tournante » existe");
             }
             boolean fallbackRotating = sinon.equals("tournante");
+            Object rewardRaw = t.get("recompense");
+            List<String> reward = rewardRaw == null ? List.of() : commands(rewardRaw, path + "." + id + ".recompense");
             for (int g : goals) {
                 if (g < 1) {
                     throw new IllegalArgumentException(path + "." + id + ".objectif : 1 au moins");
@@ -363,7 +371,7 @@ record Settings(ZoneId zone, int checkSeconds, int checkPerTick, Map<String, Int
             out.add(new TaskDef(id, t.getString("texte", id), t.getString("icone", "PAPER"), t.getString("clic", ""),
                     List.copyOf(counters), List.copyOf(values), compte == null ? "" : compte.getString("egal", ""),
                     value, List.copyOf(goals), List.copyOf(t.getStringList("description")), List.copyOf(conditions),
-                    fallbackRotating));
+                    fallbackRotating, reward));
         }
         return out;
     }

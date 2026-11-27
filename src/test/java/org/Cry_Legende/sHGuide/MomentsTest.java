@@ -287,6 +287,181 @@ class MomentsTest {
         assertTrue(check(s).isEmpty());
     }
 
+    // ------------------------------------------------------------------ récompense propre à une tâche
+
+    /** L'exemple du jar, avec une récompense sur « niveau » (fixe) et sur « sauts » (tournante, la dernière de la journée dans ces tests). */
+    private static YamlConfiguration withTaskRewards() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.taches.niveau.recompense", List.of("[console] give {joueur} diamond 1", "say %player_name% bravo"));
+        c.set("programme.tournantes.sauts.recompense", List.of("[console] give {joueur} emerald 2"));
+        return c;
+    }
+
+    private static List<String> ids(List<Programme.TaskView> views) {
+        return views.stream().map(v -> v.def().id()).toList();
+    }
+
+    /** Une vérification du programme puis les tâches dont la récompense part (la même méthode que Sessions.refresh). */
+    private List<String> rewardsOf(PlayerState s) {
+        return ids(Moments.rewarded(Programme.update(s, cfg, r, DAY)));
+    }
+
+    @Test
+    void aTaskWithARewardGivesItsCommandsTheMomentItIsDone() {
+        cfg = Settings.read(withTaskRewards());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%player_level%", "11");
+        List<Programme.TaskView> rewarded = Moments.rewarded(Programme.update(s, cfg, r, DAY));
+        assertEquals(List.of("niveau"), ids(rewarded));
+        assertEquals(List.of("[console] give Bot diamond 1", "say NOM bravo"),
+                Moments.expand(rewarded.get(0).def().reward(), Map.of("joueur", "Bot"), text -> text.replace("%player_name%", "NOM")));
+        assertTrue(rewardsOf(s).isEmpty(), "pas une deuxième fois à la vérification suivante");
+    }
+
+    @Test
+    void theLastTaskOfTheDayGivesItsRewardToo() {
+        cfg = Settings.read(withTaskRewards());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%player_level%", "11");
+        values.put("%player_gamemode%", "CREATIVE");
+        assertEquals(List.of("niveau"), rewardsOf(s));
+        values.put("%statistic_jump%", "103");
+        Programme.Tick last = Programme.update(s, cfg, r, DAY);
+        assertTrue(last.newlyCompleted());
+        assertEquals(List.of("sauts"), ids(Moments.rewarded(last)));
+        assertEquals(List.of("[console] give {joueur} emerald 2"), Moments.rewarded(last).get(0).def().reward());
+        assertTrue(rewardsOf(s).isEmpty());
+    }
+
+    @Test
+    void theLastTaskIsStillOnlyTheProgramMomentButItsRewardGoesAnyway() {
+        cfg = Settings.read(withTaskRewards());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%player_level%", "11");
+        values.put("%player_gamemode%", "CREATIVE");
+        values.put("%statistic_jump%", "103");
+        Programme.Tick t = Programme.update(s, cfg, r, DAY);
+        assertEquals(List.of("programme-complet"), names(Moments.after(t, List.of(), 1, 0)));
+        assertEquals(List.of("niveau", "sauts"), ids(Moments.rewarded(t)), "dans l'ordre du programme");
+    }
+
+    @Test
+    void aTaskWithoutARewardGivesNothingNew() {
+        cfg = Settings.read(withTaskRewards());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%player_gamemode%", "CREATIVE");
+        Programme.Tick t = Programme.update(s, cfg, r, DAY);
+        assertEquals(List.of("creatif"), ids(t.newlyDone()));
+        assertTrue(Moments.rewarded(t).isEmpty());
+        // et sans aucune récompense dans la config, comme avant
+        cfg = Settings.read(SettingsTest.example());
+        assertTrue(cfg.tasksFor(DAY).stream().allMatch(d -> d.reward().isEmpty()));
+        PlayerState plain = PlayerState.fresh("Bot");
+        Programme.update(plain, cfg, r, DAY);
+        values.put("%player_level%", "11");
+        Programme.Tick done = Programme.update(plain, cfg, r, DAY);
+        assertFalse(done.newlyDone().isEmpty());
+        assertTrue(Moments.rewarded(done).isEmpty());
+    }
+
+    @Test
+    void aRewardNeverRunsTwiceInTheSameDay() {
+        cfg = Settings.read(withTaskRewards());
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        values.put("%player_level%", "11");
+        assertEquals(List.of("niveau"), rewardsOf(s));
+        // le compteur redescend (le départ est repris) puis remonte : la tâche reste faite
+        values.put("%player_level%", "3");
+        assertTrue(rewardsOf(s).isEmpty());
+        values.put("%player_level%", "9");
+        assertTrue(rewardsOf(s).isEmpty());
+        // reconnexion : l'état enregistré puis relu
+        com.google.gson.Gson gson = new com.google.gson.Gson();
+        PlayerState back = gson.fromJson(gson.toJson(s), PlayerState.class).normalize();
+        assertTrue(rewardsOf(back).isEmpty());
+        // /shguide reload : la config relue, l'état du joueur gardé
+        cfg = Settings.read(withTaskRewards());
+        assertTrue(rewardsOf(back).isEmpty());
+        // le lendemain, elle repart une fois
+        Programme.update(back, cfg, r, DAY.plusDays(1));
+        values.put("%player_level%", "10");
+        assertEquals(List.of("niveau"), ids(Moments.rewarded(Programme.update(back, cfg, r, DAY.plusDays(1)))));
+        assertTrue(Moments.rewarded(Programme.update(back, cfg, r, DAY.plusDays(1))).isEmpty());
+    }
+
+    @Test
+    void aTaskAlreadyDoneAtLoginGivesItsRewardOnce() {
+        YamlConfiguration c = withTaskRewards();
+        c.set("programme.taches.vote.texte", "Voter une fois");
+        c.set("programme.taches.vote.valeur", "%votes_jour%");
+        c.set("programme.taches.vote.objectif", List.of(1));
+        c.set("programme.taches.vote.recompense", List.of("[console] give {joueur} gold_ingot 1"));
+        cfg = Settings.read(c);
+        values.put("%votes_jour%", "1");
+        PlayerState s = PlayerState.fresh("Bot");
+        // juste après la connexion, avant les départs : une tâche « valeur » est déjà faite
+        assertEquals(List.of("vote"), ids(Moments.rewarded(Programme.update(s, cfg, r, DAY, false))));
+        assertTrue(Moments.rewarded(Programme.update(s, cfg, r, DAY, false)).isEmpty());
+        assertTrue(Moments.rewarded(Programme.update(s, cfg, r, DAY, true)).isEmpty());
+    }
+
+    @Test
+    void theTaskThatReplacedAnotherGivesItsOwnReward() {
+        YamlConfiguration c = withTaskRewards();
+        c.set("programme.taches.creatif.si", List.of("%quete_active% != /"));
+        c.set("programme.taches.creatif.sinon", "tournante");
+        c.set("programme.taches.creatif.recompense", List.of("[console] give {joueur} stone 1"));
+        c.set("programme.tournantes.peche.texte", "Pêcher {objectif} poissons");
+        c.set("programme.tournantes.peche.compteurs", List.of("%statistic_fish_caught%"));
+        c.set("programme.tournantes.peche.objectif", List.of(2));
+        c.set("programme.tournantes.peche.recompense", List.of("[console] give {joueur} cod 1"));
+        cfg = Settings.read(c);
+        values.put("%quete_active%", "/");
+        values.put("%statistic_fish_caught%", "5");
+        PlayerState s = PlayerState.fresh("Bot");
+        Programme.update(s, cfg, r, DAY);
+        String alt = cfg.alternateFor(DAY).id();
+        assertEquals(alt, s.choices.get("creatif"));
+        values.put("%statistic_fish_caught%", "8");
+        values.put("%statistic_jump%", "110");
+        values.put("%player_gamemode%", "CREATIVE");
+        List<Programme.TaskView> rewarded = Moments.rewarded(Programme.update(s, cfg, r, DAY));
+        // la tâche du jour et celle qui remplace « creatif » : chacune sa récompense, « creatif » (absente) aucune
+        assertEquals(Set.of("sauts", "peche"), Set.copyOf(ids(rewarded)));
+        assertEquals(2, rewarded.size());
+        assertEquals(cfg.rotatingById(alt).reward(), rewarded.stream().filter(v -> v.def().id().equals(alt)).findFirst().orElseThrow().def().reward());
+    }
+
+    @Test
+    void aTaskRewardIsReadForFixedAndRotatingTasksAndAbsentMeansNone() {
+        Settings s = Settings.read(withTaskRewards());
+        assertEquals(List.of("[console] give {joueur} diamond 1", "say %player_name% bravo"), s.tasks().get(0).reward());
+        assertTrue(s.tasks().get(1).reward().isEmpty());
+        assertEquals(List.of("[console] give {joueur} emerald 2"), s.rotating().get(0).reward());
+        YamlConfiguration c = withTaskRewards();
+        c.set("programme.taches.niveau.recompense", List.of());
+        assertTrue(Settings.read(c).tasks().get(0).reward().isEmpty());
+        c.set("programme.taches.niveau.recompense", null);
+        assertTrue(Settings.read(c).tasks().get(0).reward().isEmpty());
+    }
+
+    @Test
+    void aBadTaskRewardIsRefusedAndNamed() {
+        YamlConfiguration c = SettingsTest.example();
+        c.set("programme.taches.niveau.recompense", "[console] give {joueur} diamond 1");
+        String notAList = assertThrows(IllegalArgumentException.class, () -> Settings.read(c)).getMessage();
+        assertTrue(notAList.startsWith("programme.taches.niveau.recompense"), notAList);
+        YamlConfiguration d = SettingsTest.example();
+        d.set("programme.tournantes.sauts.recompense", List.of("say x", 5));
+        String notText = assertThrows(IllegalArgumentException.class, () -> Settings.read(d)).getMessage();
+        assertTrue(notText.startsWith("programme.tournantes.sauts.recompense[1]"), notText);
+    }
+
     // ------------------------------------------------------------------ cadeau pris, retour, annonce
 
     @Test
