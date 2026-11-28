@@ -14,7 +14,8 @@
 #     icone: CHEST                     facultatif, papier sinon ; objet du jeu, tête hdb-<id> ou basehead-<base64>
 #     clic: "spawn"                    facultatif ; si le clic ne doit pas lancer la commande (actions de menus.yml)
 #
-# L'ordre se fait tout seul (les plus récentes d'abord). Une entrée brille tant que le joueur ne l'a pas vue, 30 jours au
+# L'ordre se fait tout seul, les plus récentes d'abord. Le même jour, la plus bas dans le fichier passe en premier : une
+# entrée ajoutée à la fin est donc toujours en tête. Une entrée brille tant que le joueur ne l'a pas vue, 30 jours au
 # plus (nouveautes-recentes-jours dans config.yml). Renommer sa clé la rend de nouveau « pas vue » pour tout le monde. Une
 # vieille entrée se supprime quand on veut. « texte » accepte aussi une liste de lignes avec leurs couleurs.
 #

@@ -48,16 +48,36 @@ class NouveautesTest {
     }
 
     @Test
-    void newestFirstThenFileOrderAndFutureHidden() {
-        assertEquals(List.of("vente", "deco", "vieille"), ids(news(THREE).out(TODAY)));
-        assertEquals(List.of("noel", "vente", "deco", "vieille"), ids(news(THREE).out(LocalDate.parse("2026-12-01"))));
+    void newestFirstSameDayLastAddedFirstAndFutureHidden() {
+        assertEquals(List.of("deco", "vente", "vieille"), ids(news(THREE).out(TODAY)));
+        assertEquals(List.of("noel", "deco", "vente", "vieille"), ids(news(THREE).out(LocalDate.parse("2026-12-01"))));
+    }
+
+    @Test
+    void entriesAddedLaterTheSameDayComeFirstEvenWhenDatesAreMixed() {
+        Nouveautes n = news("""
+                a:
+                  date: "2026-11-24"
+                  titre: "A"
+                b:
+                  date: "2026-11-25"
+                  titre: "B"
+                c:
+                  date: "2026-11-24"
+                  titre: "C"
+                d:
+                  date: "2026-11-25"
+                  titre: "D"
+                """);
+        assertEquals(List.of("d", "b", "c", "a"), ids(n.out(TODAY)));
+        assertEquals(List.of("d", "b", "c", "a"), ids(n.since("2026-11-20", TODAY)));
     }
 
     @Test
     void commandIsTheDefaultClick() {
         Nouveautes n = news(THREE);
-        assertEquals(List.of("/sell"), n.out(TODAY).get(0).click());
-        assertEquals(List.of("[menu] aide"), n.out(TODAY).get(1).click());
+        assertEquals(List.of("[menu] aide"), n.out(TODAY).get(0).click());
+        assertEquals(List.of("/sell"), n.out(TODAY).get(1).click());
         assertEquals(List.of(), n.out(TODAY).get(2).click());
     }
 
@@ -65,13 +85,13 @@ class NouveautesTest {
     void unreadSkipsOldReadAndBeforeArrival() {
         Nouveautes n = news(THREE);
         PlayerState s = PlayerState.fresh("Cry");
-        assertEquals(List.of("vente", "deco"), ids(n.unread(s, TODAY, 30)));
-        assertEquals(List.of("vente", "deco", "vieille"), ids(n.unread(s, TODAY, 90)));
+        assertEquals(List.of("deco", "vente"), ids(n.unread(s, TODAY, 30)));
+        assertEquals(List.of("deco", "vente", "vieille"), ids(n.unread(s, TODAY, 90)));
         s.firstDay = "2026-11-24";
         assertEquals(List.of(), ids(n.unread(s, TODAY, 30)));
         s.firstDay = "2026-11-23";
         assertTrue(n.markRead(s, List.of(n.out(TODAY).get(0))));
-        assertEquals(List.of("deco"), ids(n.unread(s, TODAY, 30)));
+        assertEquals(List.of("vente"), ids(n.unread(s, TODAY, 30)));
         assertFalse(n.markRead(s, List.of(n.out(TODAY).get(0))));
     }
 
@@ -86,7 +106,7 @@ class NouveautesTest {
 
     @Test
     void sinceLastVisit() {
-        assertEquals(List.of("vente", "deco"), ids(news(THREE).since("2026-11-20", TODAY)));
+        assertEquals(List.of("deco", "vente"), ids(news(THREE).since("2026-11-20", TODAY)));
         assertEquals(List.of(), ids(news(THREE).since("2026-11-24", TODAY)));
         assertEquals(List.of(), ids(news(THREE).since(null, TODAY)));
     }
@@ -121,10 +141,10 @@ class NouveautesTest {
                   date: "2026-11-24"
                   titre: "Rien"
                 """);
-        assertEquals(List.of("« Fusionnez 5 décorations", "pareilles en 1 plus rare. »"), n.all().get(0).lines(style));
+        assertEquals(List.of("« Fusionnez 5 décorations", "pareilles en 1 plus rare. »"), n.all().get(2).lines(style));
         assertEquals(List.of("&7Une", "&7Deux"), n.all().get(1).lines(style));
-        assertEquals(List.of(), n.all().get(2).lines(style));
-        assertEquals("PAPER", n.all().get(2).icon());
+        assertEquals(List.of(), n.all().get(0).lines(style));
+        assertEquals("PAPER", n.all().get(0).icon());
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -13,7 +14,8 @@ import java.util.List;
 /**
  * nouveautes.yml : ce qui a changé sur le serveur, une entrée par nouveauté. Une nouveauté est « nouvelle » pour un joueur
  * tant qu'il ne l'a pas vue dans l'écran des nouveautés, qu'elle est sortie (date passée), récente, et sortie après son
- * arrivée. Les plus récentes d'abord ; à date égale, l'ordre du fichier.
+ * arrivée. Les plus récentes d'abord ; à date égale, la plus bas dans le fichier d'abord (on ajoute à la fin, donc la
+ * dernière ajoutée).
  */
 record Nouveautes(List<Entree> all) {
 
@@ -36,6 +38,7 @@ record Nouveautes(List<Entree> all) {
                 errors.add(e.getMessage());
             }
         }
+        Collections.reverse(out);
         out.sort(Comparator.comparing(Entree::date).reversed());
         return new Nouveautes(List.copyOf(out));
     }
